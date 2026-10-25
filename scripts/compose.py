@@ -430,10 +430,12 @@ def main():
          f"tpad=stop_mode=clone:stop_duration=10,fps={args.fps},trim=start={max(0, start + offset):.4f}:duration={frames / args.fps + 1},setpts=PTS-STARTPTS",
          "-fps_mode", "passthrough", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
         stdout=subprocess.PIPE)
+    # A silent stereo track goes along: LinkedIn will not take a video without sound.
     encode = subprocess.Popen(
         ["ffmpeg", "-loglevel", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{out_w}x{out_h}",
-         "-r", str(args.fps), "-i", "-", "-c:v", "libx264", "-preset", "slow", "-crf", "17", "-pix_fmt", "yuv420p",
-         "-movflags", "+faststart", str(args.out)],
+         "-r", str(args.fps), "-i", "-", "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000",
+         "-shortest", "-c:v", "libx264", "-preset", "slow", "-crf", "17", "-pix_fmt", "yuv420p",
+         "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", str(args.out)],
         stdin=subprocess.PIPE)
 
     frame_bytes = screen_size[0] * screen_size[1] * 3
