@@ -4,7 +4,8 @@
 Usage: compose.py <take-dir> <out.mp4> [options]
 
 The take dir holds rec.mp4 (the simulator recording) and taps.json (when and where each
-press landed, in screen points, timed from the app's run). The clip puts the recording
+press landed, in screen points, timed from the app's run). A press with "gesture":
+"pinch" is drawn as two fingers closing in on its point instead of a tap. The clip puts the recording
 inside a phone bezel on a background, moves a camera over it and draws a ring at every
 press. Run with --help for the options.
 
@@ -24,6 +25,10 @@ from PIL import Image, ImageDraw, ImageFilter
 
 FPS = 60
 RING_LEAD = 0.12
+# A pinch: half the distance between the fingers as they land and as they lift, in
+# screen points, and the slant of the line through them.
+PINCH_SPREAD = (110, 46)
+PINCH_ANGLE = math.radians(-38)
 
 DEFAULT_COLORS = ["#c9b8ff", "#ffc9a8", "#9fd8ff", "#ffb3d1", "#c4e2ff"]
 # Where the gradient's colors sit, as shares of the canvas, for up to eight colors.
@@ -347,6 +352,30 @@ def ring_shape(age):
     return 1 - 0.2 * ease_in_out(q), (1 - q) ** 1.5
 
 
+def pinch_shape(age):
+    """The fingers of a pinch `age` seconds after its press: how far they have closed in,
+    as a share of the way, and each ring's radius share and opacity. They land apart a
+    beat before the press, close in through it, the app answering halfway, and lift."""
+    if age < -0.42 or age > 0.6:
+        return 0, 0, 0
+    landed = age + 0.42
+    if landed < 0.15:
+        share, alpha = 0.45 + 0.55 * ease_out(landed / 0.15), min(1, landed / 0.06)
+    else:
+        share, alpha = 1, 1
+    if age > 0.3:
+        q = (age - 0.3) / 0.3
+        share, alpha = 1 - 0.2 * ease_in_out(q), (1 - q) ** 1.5
+    return ease_in_out((age + 0.3) / 0.6), share, alpha
+
+
+def pinch_fingers(cx, cy, closed):
+    """Where the two fingers of a pinch around (cx, cy) are, in screen points."""
+    half = PINCH_SPREAD[0] + (PINCH_SPREAD[1] - PINCH_SPREAD[0]) * closed
+    dx, dy = half * math.cos(PINCH_ANGLE), half * math.sin(PINCH_ANGLE)
+    return [(cx - dx, cy - dy), (cx + dx, cy + dy)]
+
+
 # Main -----------------------------------------------------------------------------
 
 def parse_args():
@@ -432,11 +461,17 @@ def main():
 
         if args.ring != "none":
             for tap in taps:
-                share, alpha = ring_shape(t - tap["time"] + RING_LEAD)
+                if tap.get("gesture") == "pinch":
+                    closed, share, alpha = pinch_shape(t - tap["time"])
+                    points = pinch_fingers(tap["x"], tap["y"], closed)
+                else:
+                    share, alpha = ring_shape(t - tap["time"] + RING_LEAD)
+                    points = [(tap["x"], tap["y"])]
                 if alpha > 0:
-                    x = ox + (phone.origin[0] + tap["x"] * args.scale) * scale
-                    y = oy + (phone.origin[1] + tap["y"] * args.scale) * scale
-                    ring(frame, x, y, args.ring_radius * args.scale * scale * share, alpha, args.ring)
+                    for px, py in points:
+                        x = ox + (phone.origin[0] + px * args.scale) * scale
+                        y = oy + (phone.origin[1] + py * args.scale) * scale
+                        ring(frame, x, y, args.ring_radius * args.scale * scale * share, alpha, args.ring)
 
         encode.stdin.write(frame.convert("RGB").tobytes())
         if k % args.fps == 0:

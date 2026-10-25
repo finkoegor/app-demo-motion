@@ -103,6 +103,10 @@ appears as a person would see it.
 For UIKit or another framework do the same with whatever the app offers: a flag, a
 timer, the controls' own actions, and a JSON timeline of `{"target","time","x","y"}`
 written to `NSTemporaryDirectory()/demo-taps.json` in screen points from the run's start.
+A press can carry `"gesture": "pinch"`: `compose.py` then draws two fingers landing apart
+around the point and closing in through the press time, the app answering halfway. For a
+pinch the autopilot runs what the gesture does at a stop (a grid gaining a column, say)
+and reports the middle of the pinched view.
 
 Without changing the app (not recommended): drive the flow with `xcrun simctl` or the
 simulator tool, write `taps.json` by hand with times measured from the start of the
