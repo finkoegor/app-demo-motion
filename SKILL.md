@@ -1,6 +1,6 @@
 ---
 name: telegram-style-motion
-description: Makes Telegram-style promo clips of an iOS app. The app plays a scripted flow on the iOS Simulator, the recording goes into a phone bezel on a gradient or any background, a camera moves in on the action and a ring pulses at every tap. Use when asked for an app promo video, a feature screencast with tap highlights, a motion clip of a flow, a "video like Telegram makes", or a clip for Threads, Reels, Product Hunt or the App Store page.
+description: Makes Telegram-style promo clips of an iOS app. The app plays a scripted flow on the iOS Simulator, the recording goes into a phone bezel on a gradient, a color or the person's own picture, a camera moves in on the action or holds a steady wide shot, and a ring pulses at every tap and follows every swipe. Use when asked for an app promo video, a feature screencast with tap highlights, a motion clip of a flow, a "video like Telegram makes", or a clip for Threads, Reels, Product Hunt or the App Store page.
 ---
 
 # Telegram Style Motion
@@ -17,12 +17,16 @@ live next to this file in `scripts/`; copy them into the project or run them fro
 1. The app presses its own buttons. A debug build launched with `-Demo` runs a scripted
    scenario through the same actions a finger triggers, with exact pauses, and writes a
    timeline of presses (time, point on screen) to its temporary folder.
-2. `scripts/record.sh` prepares the simulator (appearance, status bar, clipboard, saved
-   app state), records the screen with `simctl io recordVideo` and stops when the
-   timeline appears.
+2. `scripts/record.sh` prepares the simulator (appearance, a 9:41 status bar, clipboard,
+   saved app state), records the screen with `simctl io recordVideo` and stops when the
+   timeline appears. `scripts/record-lossless.sh` records the same run without loss from
+   the simulator's window through ScreenCaptureKit, for apps with soft dark gradients,
+   which `simctl` compresses into bands.
 3. `scripts/compose.py` builds the clip: finds the exact offset between the timeline and
    the recording by watching when the screen starts changing after each press, draws the
-   phone, background, camera and rings, and encodes 60 fps H.264.
+   phone, background, camera and rings, and encodes 60 fps H.264. With a steady camera,
+   `scripts/compose10.py` builds it from a lossless take in 10 bits: HEVC Main 10 and a
+   dithered H.264, both without bands.
 
 ## Step 0: the scenario, with the person
 
@@ -43,8 +47,14 @@ code, settle the scenario together:
 - Preconditions: what the app must already contain so the screens look full (a few
   items, a profile name, dark or light appearance). Save that state once and restore it
   before every take.
-- Format and style: square, 4:5 or 9:16; the phone (Apple bezel, own PNG, Simulator
-  chrome, drawn); the background (brand gradient colors, a color, an image); ring style.
+- Format and style: square, 4:5, 2:3 or 9:16, and the pixel size; the phone (Apple bezel,
+  own PNG, Simulator chrome, drawn); the background (brand gradient colors, a color, or
+  the person's own picture: ask them to send the file); ring style.
+- The camera, as the person likes it: leaning in on the actions (a zoom on a button before
+  it is pressed, out again for the result) or a steady wide shot all the way through. Ask;
+  both are normal. A steady shot also allows the 10-bit build.
+- Anything with soft dark gradients (glows, fades over a dark sheet): plan the lossless
+  take from the start (Step 2b), as `simctl` compression shows them as bands.
 
 Then turn the list into code: read the app to find each pressed control and the action
 it runs, mark it with `.demoTarget`, gate it on the state that means "ready" (loaded,
@@ -71,9 +81,13 @@ wrapped in `#if DEBUG`, nothing ships), then:
   the page and saves reads as: `press(.add)`, `pause(1.2)`, `press(.paste)`,
   `press(.save, after: 2.0)` with `.save` enabled only once the page is loaded,
   `pause(2.4)`, `press(.done)`, `pause(2.0)`.
-- A slider is pressed where its value would be: `anchor: UnitPoint(x: 0.96, y: 0.5)` puts
-  the ring at the top end, and the action can walk the value up step by step so the
-  number counts as under a finger.
+- A slider, a wheel or a carousel is swiped: `swipe(.value, at: UnitPoint(x: 0.3, y: 0.5),
+  to: 8, over: 1.2)` lands the finger at that point of the control and asks it to move to
+  value 8 in 1.2 s. The control reads `DemoAutopilot.shared?.swiping`, works out how far
+  that is, reports it with `swiped(by:)` and moves its value along `DemoSwipe.ease`; the
+  ring travels the same path on the same curve (see `DemoSwipe.swift`). Two swipes in a
+  row (down to 3, then up to 8) read well. A quick alternative is a press where the value
+  would be, `anchor: UnitPoint(x: 0.96, y: 0.5)`, with the action walking the value up.
 - One item of a list (a tag, a row) is picked with an optional target:
   `.demoTarget(tag == "Outside" ? .location : nil) { toggle(tag) }`.
 - A button whose meaning changes in place (Continue, then Save) passes the target for
@@ -89,7 +103,14 @@ wrapped in `#if DEBUG`, nothing ships), then:
   `frameOfMenuItem(titled:)` and pressed by `dismissMenu()` plus the row's own action:
   `.demoTarget(.listView, locate: { DemoLocator.frameOfMenuItem(titled: "List view") }) { DemoLocator.dismissMenu(); layout = .list }`.
 - Seed the data the clip shows: every day of the weeks or months the viewer will see,
-  with varied values, so charts and lists are never empty or flat.
+  with varied values, so charts and lists are never empty or flat. Mind the calendar:
+  on the 1st of a month the current month is almost empty; open the one before it.
+- A control inside a horizontally scrolled row (period chips that jump to the end) can
+  keep the point it had before the row scrolled. compose.py warns about presses off the
+  screen; fix such a point in `taps.json` by hand from a frame.
+- Several views may carry the same target in turn (a chip of one range replaced by a
+  chip of another): the modifier keeps an owner per view, so the one leaving doesn't
+  take the target from the one arriving.
 - Start it from the root view: `.task { await DemoAutopilot.shared?.run() }`. If the app
   has a launch screen or loader, the first pause has to outlast it, or the clip opens on
   the loader.
@@ -104,7 +125,9 @@ For UIKit or another framework do the same with whatever the app offers: a flag,
 timer, the controls' own actions, and a JSON timeline of `{"target","time","x","y"}`
 written to `NSTemporaryDirectory()/demo-taps.json` in screen points from the run's start.
 A press can carry `"gesture": "pinch"`: `compose.py` then draws two fingers landing apart
-around the point and closing in through the press time, the app answering halfway. For a
+around the point and closing in through the press time, the app answering halfway. A
+press with `"gesture": "swipe"`, `"x2"`, `"y2"` and `"duration"` is a finger landing at
+(x, y) and travelling to (x2, y2), eased in and out. For a
 pinch the autopilot runs what the gesture does at a stop (a grid gaining a column, say)
 and reports the middle of the pinched view.
 
@@ -122,6 +145,11 @@ STATE_DIR=~/takes/state/MyApp APPEARANCE=dark TIME=9:41 CLIPBOARD="https://examp
 - Install a Debug build on the simulator first (`xcodebuild ... build` then
   `xcrun simctl install <udid> <app>`), on a simulator of the device whose bezel will be
   used. Current iPhones record at 3 px per point.
+- The status bar must read 9:41. `TIME=9:41` sets it, but the bar writes the time the
+  region's way (09:41 with a zero in South Africa, say), so record.sh reboots the
+  simulator in en_US for the take and puts the region back after. Look at the first frame
+  before building the clip.
+- The recording is H.264 on purpose: `simctl` writes HEVC at about half the bitrate.
 - `STATE_DIR` restores a saved copy of the app's Application Support folder so every
   take starts from the same content. Make it once by hand: fill the app, then copy the
   folder out of `xcrun simctl get_app_container <udid> <bundle> data`.
@@ -139,6 +167,34 @@ STATE_DIR=~/takes/state/MyApp APPEARANCE=dark TIME=9:41 CLIPBOARD="https://examp
   `taps.json` by hand, timed from the timeline's `started`, a quarter second before the
   link opens.
 
+## Step 2b: the lossless take
+
+For apps whose look rests on soft gradients, especially dark ones: iOS dithers them and
+they are smooth on the device and in `simctl io screenshot`, but `simctl io recordVideo`
+compresses the dithering away and leaves bands about 40 px apart. Neither a higher output
+resolution nor a lower CRF brings it back. Record the window instead:
+
+1. Xcode 27 shows simulators in Device Hub (`Xcode.app/Contents/Applications/DeviceHub.app`,
+   `com.apple.dt.Devices`), Xcode 26 in Simulator. Open it on the booted device, hide the
+   sidebar and zoom the device in until the screen is as tall as the window allows (on a
+   1728 by 1117 point display that is a screen of about 418 by 907 points, 836 px wide).
+   Device Hub's window isn't reachable through accessibility; the person can click, or
+   post mouse events with CGEvent. For 9:41 boot the device in en_US first (set
+   `AppleLocale`, shut it down, Start it in Device Hub).
+2. Build the tool and find the screen in the window:
+   ```
+   swiftc -O scripts/capture.swift -o scripts/capture
+   scripts/capture --snapshot window.png "iPhone 17 Pro"
+   xcrun simctl io <udid> screenshot screenshot.png
+   python3 scripts/find_screen.py window.png screenshot.png   # prints x y width height
+   ```
+   The first capture asks for Screen Recording permission for the app running it; the
+   person grants it in System Settings, Privacy and Security.
+3. Record: `SCREEN="655.5 93 418 907" APPEARANCE=dark TIME=9:41 scripts/record-lossless.sh
+   ~/takes/take1 <udid> com.example.app -Demo`. Nobody touches the window for the length of
+   the run. It writes ProRes 422 HQ (10-bit, about 15 MB a second) at up to 60 frames a
+   second, only when the screen changes, plus `rec.json` with the first frame's time.
+
 ## Step 3: the clip
 
 ```
@@ -146,9 +202,21 @@ python3 scripts/compose.py ~/takes/take1 ~/takes/promo.mp4 \
   --bezel bezel.png --camera camera.json --colors "#c9b8ff,#ffc9a8,#9fd8ff,#ffb3d1"
 ```
 
+A steady camera from a lossless take, in 10 bits:
+
+```
+python3 scripts/compose10.py ~/takes/take1 ~/takes/promo --size 1440x2160 \
+  --bezel bezel.png --background ~/Desktop/background.jpg
+```
+
+writes `promo.mp4` (H.264 dithered down from 10 bits, plays everywhere) and
+`promo-10bit.mp4` (HEVC Main 10, smooth wherever 10 bits play; social networks
+re-encode uploads, give them the H.264).
+
 Options that matter:
 
-- `--size`: 1920x1920 by default; 1080x1350 for a feed, 1080x1920 for Reels and Stories.
+- `--size`: 1920x1920 by default; 1080x1350 for a feed, 1440x2160 for 2:3, 1080x1920 for
+  Reels and Stories.
   The phone takes `--share` of the frame height (0.86).
 - `--bezel`: a PNG of a phone with a transparent screen. The hole is found automatically
   and scaled to the recording, so any device works if the recording matches it. Best
@@ -157,9 +225,11 @@ Options that matter:
   installed, `swift scripts/chrome.swift "iPhone 17 Pro" bezel.png` renders the
   Simulator's own chrome, flat but exact.
 - `--background`: `gradient` (default) with `--colors` as a comma list of hex values,
-  the brand palette goes here; a solid `#hex`; or an image file, cropped to cover.
-- `--camera`: `none`, `auto` (leans in at every press and back out) or a JSON file of
-  moves: `at` as seconds or `tap<N>±seconds`, `zoom`, `focus` in screen points,
+  the brand palette goes here; a solid `#hex`; or the person's own picture, any image
+  file, cropped to cover. A picture gets a little grain (`--grain`, 1.6) so its soft
+  areas don't band once encoded.
+- `--camera`: `none` (a steady wide shot, as good a choice as any), `auto` (leans in at
+  every press and back out) or a JSON file of moves: `at` as seconds or `tap<N>±seconds`, `zoom`, `focus` in screen points,
   `duration`. Move in on details (a form, a picture being processed), move out before
   a big effect that needs the whole screen, and end wide. See `examples/camera.json`.
 - `--ring`: `grey` (grey with a white rim and shadow, readable over white buttons),
@@ -167,17 +237,30 @@ Options that matter:
 - `--lead` and `--tail`: rest before the first press and after the last one.
 - `--offset`: overrides the automatic sync when the first screen change is not caused
   by the press (a spinner was running) or the timeline is hand made.
+- `--deband`: smooths the steps `simctl` compression leaves in dark gradients; helps a
+  plain take, a lossless one doesn't need it. `--noise` (1.5) is film grain over the
+  clip so the encoder keeps gradients smooth; 0 turns it off.
 
 Rendering is a few seconds of clip per minute of work at 1920 square; check the first
 result, then adjust camera and pacing.
 
+Put the finished clip where the person will see it (their Desktop, unless they keep
+clips elsewhere) and say its path.
+
 ## Check the result before handing it over
 
 Pull frames and look: `ffmpeg -i promo.mp4 -vf "fps=2,scale=240:-1,tile=6x4" -frames:v 1 sheet.png`.
-Look for: the ring lands exactly before the screen reacts; the phone's corners are hidden
-by the bezel; the first and last frames rest on calm screens; the camera never cuts off
-what the viewer should read. For a seamless loop, script the flow to return to the
-starting screen and trim the tail to match.
+Look for: the status bar reads 9:41; the ring lands exactly before the screen reacts and
+a swipe's ring stays on the moving control; the phone's corners are hidden by the bezel;
+the first and last frames rest on calm screens; the camera never cuts off what the
+viewer should read. For a seamless loop, script the flow to return to the starting
+screen and trim the tail to match.
+
+Bands in gradients show best with the contrast stretched: pull a frame of a dark fade at
+16 bits (`-f rawvideo -pix_fmt rgb48le`), multiply its values by four or five and look
+for stripes. To see the frame rate of the motion itself, list the recording's frame times
+(`ffprobe -show_entries frame=pts_time`) and the gaps between them during an animation:
+16.7 ms is 60 frames a second; the recorder writes nothing while the screen is still.
 
 ## Things that bite
 
@@ -191,3 +274,15 @@ starting screen and trim the tail to match.
   loading out of the frame or gate presses on `isEnabled`.
 - The autopilot reads control frames in global coordinates; on iPad or in a window the
   points differ from the screen, record on an iPhone simulator.
+- `simctl io recordVideo --codec hevc` writes about 4 Mbit/s against 7 to 10 for H.264,
+  and dark gradients band badly; keep H.264, or take it lossless.
+- `simctl status_bar override --time 9:41` follows the region; restarting SpringBoard
+  doesn't apply a new one, only a boot does.
+- ScreenCaptureKit fails with -3811 when the window isn't on the current screen (another
+  Space, hidden), and a command-line tool needs `NSApplication.shared` touched before it
+  captures, or CoreGraphics asserts. Calls with completion handlers resolve to the
+  synchronous overload in top-level code; wrap them in a continuation.
+- The window recording is only as sharp as the window: zoom the device up first. At 836 px
+  wide it fills a 1440 by 2160 frame at almost one to one.
+- A swiped control must move along `DemoSwipe.ease` over the swipe's duration, or the ring
+  drifts off it; settle to the final value from rest at the end.

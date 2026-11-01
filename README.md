@@ -1,12 +1,14 @@
 # Telegram Style Motion
 
 Promo clips of an iOS app in the style Telegram uses for its feature announcements:
-a real phone on a soft gradient, the app running inside, the camera leaning in on the
-action, a ring pulsing under every tap.
+a real phone on a soft gradient or your own picture, the app running inside, the camera
+leaning in on the action or holding still, a ring pulsing under every tap and following
+every swipe.
 
 The clip is one unbroken take. The app presses its own buttons on a timer, the
-Simulator records the screen, a script puts the recording into a phone bezel, adds the
-background, the camera moves and the rings, and encodes 60 fps H.264.
+Simulator records the screen (or ScreenCaptureKit records it without loss), a script
+puts the recording into a phone bezel, adds the background, the camera moves and the
+rings, and encodes 60 fps H.264, or HEVC in 10 bits.
 
 This repository is a skill for Claude Code. It also works by hand: the scripts are
 plain zsh, Python and Swift.
@@ -51,6 +53,43 @@ you paste the repository link and ask it to.
 
 That is a square 1920 clip with the default gradient. Read on for the knobs.
 
+`TIME=9:41` reboots the simulator in the en_US region for the take, so the bar reads
+9:41 and not 09:41, and puts the region back after.
+
+## Smooth gradients: the lossless take
+
+`simctl io recordVideo` compresses hard, and soft dark gradients (glows, fades) come out
+in bands that no setting fixes afterwards. If the app has them, record the simulator's
+window instead:
+
+1. Open the booted simulator in Device Hub (Xcode 27) or Simulator, hide the sidebar,
+   zoom the device in as far as the window allows.
+2. Find the screen in the window:
+
+   ```
+   swiftc -O scripts/capture.swift -o scripts/capture
+   scripts/capture --snapshot window.png "iPhone 17 Pro"
+   xcrun simctl io <udid> screenshot screenshot.png
+   python3 scripts/find_screen.py window.png screenshot.png
+   ```
+
+   macOS asks once for Screen Recording permission.
+3. Record, leaving the window alone while it runs:
+
+   ```
+   SCREEN="655.5 93 418 907" APPEARANCE=dark TIME=9:41 scripts/record-lossless.sh ~/takes/take1 <udid> com.example.app -Demo
+   ```
+
+4. Build it in 10 bits with a steady camera:
+
+   ```
+   python3 scripts/compose10.py ~/takes/take1 ~/takes/promo --size 1440x2160 --bezel bezel.png --background art.jpg
+   ```
+
+   `promo.mp4` is H.264 dithered from 10 bits and plays everywhere; `promo-10bit.mp4` is
+   HEVC Main 10, smooth wherever 10 bits play. `compose.py` reads lossless takes too, for
+   clips with camera moves.
+
 ## Your own flow
 
 The scripts know nothing about your app; the flow is yours. Decide it first: one feature,
@@ -93,13 +132,16 @@ The Dynamic Island is in the recording already.
 - `--background gradient` with `--colors "#c9b8ff,#ffc9a8,#9fd8ff,#ffb3d1"`: a soft mesh
   of up to eight colors. Put the brand palette here.
 - `--background "#111112"`: a solid color.
-- `--background art.png`: any image, cropped to cover the frame.
+- `--background art.jpg`: your own picture, any image, cropped to cover the frame, with a
+  little grain (`--grain`) so its soft areas don't band.
 
 The background follows the camera at a quarter of its pace, which gives the parallax.
 
 ## The camera
 
-- `--camera none`: a steady wide shot.
+Zoom or no zoom is a matter of taste; both work.
+
+- `--camera none`: a steady wide shot. With a lossless take it can be built in 10 bits.
 - `--camera auto`: leans in at every press and back out after.
 - `--camera moves.json`: your own moves. Each move has `at` (seconds, or `tap2-0.4` for
   0.4 s before the second press), `zoom`, `focus` in screen points and `duration`:
@@ -120,10 +162,14 @@ The background follows the camera at a quarter of its pace, which gives the para
 visible over white buttons. `--ring white` is the plain white ring from Telegram's clips.
 `--ring none` turns them off. `--ring-radius` is in screen points.
 
+A swipe in the timeline (`"gesture": "swipe"` with an end point and a duration) is drawn
+as a finger travelling with the control; the autopilot template has `swipe(...)` for
+sliders, wheels and carousels, and `DemoSwipe` for the control's side.
+
 ## Formats
 
-`--size 1920x1920` for a square post, `1080x1350` for a 4:5 feed, `1080x1920` for Reels
-and Stories. `--share` is how much of the frame height the phone takes (0.86).
+`--size 1920x1920` for a square post, `1080x1350` for a 4:5 feed, `1440x2160` for 2:3,
+`1080x1920` for Reels and Stories. `--share` is how much of the frame height the phone takes (0.86).
 `--lead` and `--tail` set the rest before the first press and after the last one.
 
 ## Sync
@@ -148,6 +194,8 @@ is better: external taps drift, and the first taps after a boot land late.
 - For a seamless loop, end the flow on the screen it started from and trim the tail.
 - Check the clip frame by frame before posting:
   `ffmpeg -i promo.mp4 -vf "fps=2,scale=240:-1,tile=6x4" -frames:v 1 sheet.png`
+- A press off the screen in `taps.json` (compose warns about it) is a stale point,
+  usually a control in a row that scrolled after it was measured; fix it by hand.
 
 ## Russian
 
@@ -166,7 +214,10 @@ is better: external taps drift, and the first taps after a boot land late.
 `templates/`), симулятор пишет экран (`scripts/record.sh`), скрипт собирает ролик
 (`scripts/compose.py`). Рамка телефона: Product Bezels с сайта Apple или любой
 свой PNG с прозрачным экраном через `--bezel`; фон: фирменный градиент через
-`--colors`, цвет или картинка через `--background`; камера `--camera auto` или свой
-JSON; формат `--size`. Подробности выше.
+`--colors`, цвет или своя картинка через `--background`; камера с наездами
+(`--camera auto` или свой JSON) или без зума (`--camera none`), как нравится;
+формат `--size`. Статус-бар всегда 9:41. Если в приложении мягкие тёмные градиенты,
+запись без потерь через окно симулятора (`record-lossless.sh`) и сборка в 10 бит
+(`compose10.py`) убирают полосы. Подробности выше.
 
 MIT.
