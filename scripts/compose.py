@@ -3,9 +3,12 @@
 
 Usage: compose.py <take-dir> <out.mp4> [options]
 
-The take dir holds rec.mp4 (the simulator recording) and taps.json (when and where each
-press landed, in screen points, timed from the app's run). A press with "gesture":
-"pinch" is drawn as two fingers closing in on its point instead of a tap. The clip puts the recording
+The take dir holds the recording, rec.mp4 from record.sh or rec.mov and rec.json from
+record-lossless.sh, and taps.json (when and where each press landed, in screen points,
+timed from the app's run). A press with "gesture":
+"pinch" is drawn as two fingers closing in on its point instead of a tap; one with
+"gesture": "swipe" lands at (x, y) and travels to (x2, y2) over "duration" seconds on an
+ease in and out, as the app moves its control. The clip puts the recording
 inside a phone bezel on a background, moves a camera over it and draws a ring at every
 press. Run with --help for the options.
 
@@ -29,6 +32,10 @@ RING_LEAD = 0.12
 # screen points, and the slant of the line through them.
 PINCH_SPREAD = (110, 46)
 PINCH_ANGLE = math.radians(-38)
+
+# For simctl takes: the steps its compression leaves in dark gradients are about 40
+# pixels apart, so the filter looks that far around each pixel.
+DEBAND = "deband=1thr=0.02:2thr=0.02:3thr=0.02:range=48:direction=-3.14159:blur=1"
 
 DEFAULT_COLORS = ["#c9b8ff", "#ffc9a8", "#9fd8ff", "#ffb3d1", "#c4e2ff"]
 # Where the gradient's colors sit, as shares of the canvas, for up to eight colors.
@@ -222,7 +229,7 @@ def gradient(size, colors):
     return Image.fromarray(np.clip(image, 0, 255).astype(np.uint8), "RGB")
 
 
-def background(kind, colors, size):
+def background(kind, colors, size, grain):
     """Larger than the frame, for the camera to pan over."""
     big = int(max(size) * 1.25)
     if kind == "gradient":
@@ -234,7 +241,10 @@ def background(kind, colors, size):
     factor = max(big / image.width, big / image.height)
     image = image.resize((round(image.width * factor), round(image.height * factor)), Image.LANCZOS)
     left, top = (image.width - big) // 2, (image.height - big) // 2
-    return image.crop((left, top, left + big, top + big))
+    image = image.crop((left, top, left + big, top + big))
+    # A soft picture in 8 bits shows steps once encoded; grain breaks them up.
+    pixels = np.asarray(image, np.float32) + np.random.default_rng(7).normal(0, grain, (big, big, 1))
+    return Image.fromarray(np.clip(pixels, 0, 255).astype(np.uint8), "RGB")
 
 
 # Camera ---------------------------------------------------------------------------
@@ -369,11 +379,39 @@ def pinch_shape(age):
     return ease_in_out((age + 0.3) / 0.6), share, alpha
 
 
+def swipe_finger(tap, t):
+    """Where the finger of a swipe is at `t`, its ring's radius share and opacity: it
+    lands just before the press, travels with the control, and lifts at the end."""
+    age = t - tap["time"]
+    duration = float(tap.get("duration", 0.6))
+    if age < -0.15 or age > duration + 0.32:
+        return None
+    start, end = (tap["x"], tap["y"]), (tap.get("x2", tap["x"]), tap.get("y2", tap["y"]))
+    p = ease_in_out(age / duration) if age > 0 else 0
+    point = (start[0] + (end[0] - start[0]) * p, start[1] + (end[1] - start[1]) * p)
+    if age < 0:
+        landed = age + 0.15
+        return point, 0.45 + 0.55 * ease_out(landed / 0.15), min(1, landed / 0.06)
+    if age <= duration:
+        return point, 1, 1
+    q = (age - duration) / 0.32
+    return point, 1 - 0.2 * ease_in_out(q), (1 - q) ** 1.5
+
+
 def pinch_fingers(cx, cy, closed):
     """Where the two fingers of a pinch around (cx, cy) are, in screen points."""
     half = PINCH_SPREAD[0] + (PINCH_SPREAD[1] - PINCH_SPREAD[0]) * closed
     dx, dy = half * math.cos(PINCH_ANGLE), half * math.sin(PINCH_ANGLE)
     return [(cx - dx, cy - dy), (cx + dx, cy + dy)]
+
+
+def warn_off_screen(taps, width, height):
+    """A press outside the screen means a stale frame: a control in a row that scrolled
+    after it was measured, for one. Its ring would be drawn off the phone."""
+    for index, tap in enumerate(taps, 1):
+        if not (0 <= tap["x"] <= width and 0 <= tap["y"] <= height):
+            print(f"press {index} ({tap.get('target', '?')}) is off the screen at {tap['x']:.0f}, {tap['y']:.0f}: "
+                  "fix its point in taps.json", file=sys.stderr)
 
 
 # Main -----------------------------------------------------------------------------
@@ -396,6 +434,10 @@ def parse_args():
     parser.add_argument("--ring-radius", type=float, default=40, help="in screen points")
     parser.add_argument("--lead", type=float, default=1.3, help="seconds before the first press")
     parser.add_argument("--tail", type=float, default=2.2, help="seconds after the last press")
+    parser.add_argument("--deband", nargs="?", const=DEBAND, default="",
+                        help="smooth the steps simctl's compression leaves in dark gradients (an ffmpeg filter; the flag alone uses a tested one)")
+    parser.add_argument("--noise", type=float, default=1.5, help="film grain over the whole clip, so the encoder keeps gradients smooth; 0 for none")
+    parser.add_argument("--grain", type=float, default=1.6, help="noise over a background picture, against banding")
     parser.add_argument("--offset", type=float, help="recording time of the run's start; found from the frames when omitted")
     return parser.parse_args()
 
@@ -403,10 +445,17 @@ def parse_args():
 def main():
     args = parse_args()
     out_w, out_h = (int(v) for v in args.size.lower().split("x"))
-    video = args.take / "rec.mp4"
+    # A lossless take from capture (rec.mov) says itself when its first frame was taken
+    # and how many pixels a screen point is; a simctl one (rec.mp4) is timed by its file.
+    lossless = args.take / "rec.mov"
+    video = lossless if lossless.exists() else args.take / "rec.mp4"
+    info = json.loads((args.take / "rec.json").read_text()) if lossless.exists() else {}
+    if info.get("scale"):
+        args.scale = info["scale"]
     taps, started = load_timeline(args.take / "taps.json")
     screen_size, pts = probe(video)
-    anchor = started - first_frame_wall_time(video, pts[-1]) if started else None
+    first_frame = info.get("first_frame") or first_frame_wall_time(video, pts[-1])
+    anchor = started - first_frame if started else None
     offset = args.offset if args.offset is not None else sync_offset(taps, change_onsets(video, pts), anchor)
 
     start = (taps[0]["time"] if taps else 0) - args.lead
@@ -416,25 +465,27 @@ def main():
 
     phone = Phone(screen_size, args.bezel, args.corner, args.scale, not args.no_shadow)
     points_w, points_h = screen_size[0] / args.scale, screen_size[1] / args.scale
+    warn_off_screen(taps, points_w, points_h)
     center = (points_w / 2, points_h / 2)
     camera = Camera(camera_moves(args.camera, taps, center), center)
     # Output pixels per screen point in the wide shot.
     wide = out_h * args.share / (phone.body_height / args.scale)
 
     colors = [parse_color(c) for c in args.colors.split(",")]
-    bg = background(args.background, colors, (out_w, out_h))
+    bg = background(args.background, colors, (out_w, out_h), args.grain)
     bg_size = bg.width
 
     decode = subprocess.Popen(
         ["ffmpeg", "-loglevel", "error", "-i", str(video), "-vf",
-         f"tpad=stop_mode=clone:stop_duration=10,fps={args.fps},trim=start={max(0, start + offset):.4f}:duration={frames / args.fps + 1},setpts=PTS-STARTPTS",
+         f"{args.deband + ',' if args.deband else ''}tpad=stop_mode=clone:stop_duration=10,fps={args.fps},trim=start={max(0, start + offset):.4f}:duration={frames / args.fps + 1},setpts=PTS-STARTPTS",
          "-fps_mode", "passthrough", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
         stdout=subprocess.PIPE)
     # A silent stereo track goes along: LinkedIn will not take a video without sound.
     encode = subprocess.Popen(
         ["ffmpeg", "-loglevel", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{out_w}x{out_h}",
          "-r", str(args.fps), "-i", "-", "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000",
-         "-shortest", "-c:v", "libx264", "-preset", "slow", "-crf", "17", "-pix_fmt", "yuv420p",
+         "-shortest", *(["-vf", f"noise=alls={args.noise}:allf=t"] if args.noise > 0 else []), "-c:v", "libx264", "-preset", "slow", "-tune", "grain", "-crf", "18",
+         "-pix_fmt", "yuv420p",
          "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", str(args.out)],
         stdin=subprocess.PIPE)
 
@@ -466,6 +517,12 @@ def main():
                 if tap.get("gesture") == "pinch":
                     closed, share, alpha = pinch_shape(t - tap["time"])
                     points = pinch_fingers(tap["x"], tap["y"], closed)
+                elif tap.get("gesture") == "swipe":
+                    finger = swipe_finger(tap, t)
+                    if not finger:
+                        continue
+                    point, share, alpha = finger
+                    points = [point]
                 else:
                     share, alpha = ring_shape(t - tap["time"] + RING_LEAD)
                     points = [(tap["x"], tap["y"])]
