@@ -46,21 +46,17 @@ enum DemoLocator {
         return nil
     }
 
+    /// The rightmost button of the navigation bar a tap would reach: bars of other tabs
+    /// and bars under a sheet don't count.
+    static func frameOfTrailingBarButton() -> CGRect? {
+        trailingBarButton().map { $0.convert($0.bounds, to: nil) }
+    }
+
     /// Opens the menu of the rightmost bar button, a SwiftUI `Menu` in the toolbar, as a
     /// tap would. A menu has no action to call, so this goes through the button's menu
-    /// interaction and a private UIKit method; debug builds only.
+    /// interaction and a private UIKit method.
     static func presentMenuOfTrailingBarButton() {
-        let windows = UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .flatMap(\.windows)
-            .filter { !$0.isHidden }
-        let buttons = windows
-            .flatMap(descendants(of:))
-            .compactMap { $0 as? UINavigationBar }
-            .flatMap(descendants(of:))
-            .filter { $0 is UIControl && $0.window != nil && !$0.isHidden && $0.bounds.width > 20 }
-            .sorted { $0.convert($0.bounds, to: nil).maxX < $1.convert($1.bounds, to: nil).maxX }
-        guard let button = buttons.last,
+        guard let button = trailingBarButton(),
               let interaction = ([button] + descendants(of: button))
                 .lazy
                 .compactMap({ $0.interactions.first { $0 is UIContextMenuInteraction } as? UIContextMenuInteraction })
@@ -77,10 +73,7 @@ enum DemoLocator {
 
     /// Where a row of the open menu is, found by its title.
     static func frameOfMenuItem(titled title: String) -> CGRect? {
-        let windows = UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .flatMap(\.windows)
-        let label = windows
+        let label = windows()
             .flatMap(descendants(of:))
             .compactMap { $0 as? UILabel }
             .first { $0.text == title && $0.window != nil && !$0.isHidden && $0.alpha > 0.01 }
@@ -100,6 +93,29 @@ enum DemoLocator {
     }
 
     private static weak var openMenu: UIContextMenuInteraction?
+
+    private static func trailingBarButton() -> UIView? {
+        for window in windows().filter({ !$0.isHidden }).sorted(by: { $0.windowLevel > $1.windowLevel }) {
+            let controls = descendants(of: window)
+                .compactMap { $0 as? UINavigationBar }
+                .flatMap(descendants(of:))
+                .filter { $0 is UIControl && !$0.isHidden && $0.alpha > 0.01 && $0.bounds.width > 20 }
+                .sorted { $0.convert($0.bounds, to: window).maxX > $1.convert($1.bounds, to: window).maxX }
+            for control in controls {
+                let frame = control.convert(control.bounds, to: window)
+                if let hit = window.hitTest(CGPoint(x: frame.midX, y: frame.midY), with: nil), hit.isDescendant(of: control) {
+                    return control
+                }
+            }
+        }
+        return nil
+    }
+
+    private static func windows() -> [UIWindow] {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap(\.windows)
+    }
 
     private static func first<View: UIView>(_ type: View.Type, in view: UIView) -> View? {
         if let match = view as? View { return match }

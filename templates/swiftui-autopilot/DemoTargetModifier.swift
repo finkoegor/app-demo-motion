@@ -13,6 +13,7 @@ struct DemoTargetModifier: ViewModifier {
     let action: () -> Void
 
     @State private var frame: CGRect?
+    @State private var owner = UUID()
 
     func body(content: Content) -> some View {
         if let demo = DemoAutopilot.shared {
@@ -20,25 +21,25 @@ struct DemoTargetModifier: ViewModifier {
                 .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame in
                     guard locate == nil else { return }
                     self.frame = frame
-                    demo.place(target, at: frame, anchor: anchor)
+                    demo.place(target, at: frame, anchor: anchor, owner: owner)
                 }
                 .onAppear {
                     if let locate { demo.locate(target, anchor: anchor, with: locate) }
                 }
                 .onChange(of: isEnabled, initial: true) { _, isEnabled in
-                    demo.setEnabled(target, isEnabled)
+                    demo.setEnabled(target, isEnabled, owner: owner)
                 }
                 .onChange(of: target) { old, new in
-                    demo.remove(old)
-                    if let frame { demo.place(new, at: frame, anchor: anchor) }
-                    demo.setEnabled(new, isEnabled)
+                    demo.remove(old, owner: owner)
+                    if let frame { demo.place(new, at: frame, anchor: anchor, owner: owner) }
+                    demo.setEnabled(new, isEnabled, owner: owner)
                 }
                 .onChange(of: demo.pressing) { _, pressing in
                     guard pressing == target else { return }
                     demo.didPress(target)
                     action()
                 }
-                .onDisappear { demo.remove(target) }
+                .onDisappear { demo.remove(target, owner: owner) }
         } else {
             content
         }
