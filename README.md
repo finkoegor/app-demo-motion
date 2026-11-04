@@ -170,6 +170,8 @@ sliders, wheels and carousels, and `DemoSwipe` for the control's side.
 
 `--size 1920x1920` for a square post, `1080x1350` for a 4:5 feed, `1440x2160` for 2:3,
 `1080x1920` for Reels and Stories. `--share` is how much of the frame height the phone takes (0.86).
+For a logo above the phone, lower it with `--phone-y 0.565` and pass a transparent PNG the size
+of the frame with `--overlay logo.png`: it shows in the wide shot and fades out as the camera zooms in.
 `--lead` and `--tail` set the rest before the first press and after the last one.
 
 ## Sync

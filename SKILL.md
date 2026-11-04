@@ -218,6 +218,10 @@ Options that matter:
 - `--size`: 1920x1920 by default; 1080x1350 for a feed, 1440x2160 for 2:3, 1080x1920 for
   Reels and Stories.
   The phone takes `--share` of the frame height (0.86).
+- `--phone-y` and `--overlay`: `--phone-y 0.565` lowers the phone in the wide shot (a zoom
+  brings it back to the middle), `--overlay logo.png` draws a frame-sized transparent PNG over
+  everything and fades it out by `--overlay-fade` (0.12) of zoom, so a logo above the phone never
+  peeks from behind a zoomed phone.
 - `--bezel`: a PNG of a phone with a transparent screen. The hole is found automatically
   and scaled to the recording, so any device works if the recording matches it. Best
   source: Apple's Product Bezels from developer.apple.com/design/resources, which have

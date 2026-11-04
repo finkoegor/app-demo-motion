@@ -426,9 +426,12 @@ def parse_args():
     parser.add_argument("--corner", type=float, default=55, help="screen corner radius in points for the drawn bezel")
     parser.add_argument("--scale", type=float, default=3, help="recording pixels per screen point")
     parser.add_argument("--share", type=float, default=0.86, help="share of the frame's height the phone takes in the wide shot")
+    parser.add_argument("--phone-y", type=float, default=0.5, help="where the phone's middle sits in the wide shot, as a share of the frame's height; zooming in brings it back to the middle, leaving room above or below for an overlay")
     parser.add_argument("--no-shadow", action="store_true")
     parser.add_argument("--background", default="gradient", help="gradient, a #hex color, or an image file")
     parser.add_argument("--colors", default=",".join(DEFAULT_COLORS), help="gradient colors, comma separated hex")
+    parser.add_argument("--overlay", type=Path, help="PNG the size of the frame drawn over everything in the wide shot, like a logo above the phone; it fades out as the camera zooms in")
+    parser.add_argument("--overlay-fade", type=float, default=0.12, help="zoom past 1 at which the overlay is gone")
     parser.add_argument("--camera", default="none", help="none, auto, or a JSON file of moves")
     parser.add_argument("--ring", default="grey", choices=["grey", "white", "none"])
     parser.add_argument("--ring-radius", type=float, default=40, help="in screen points")
@@ -474,6 +477,7 @@ def main():
     colors = [parse_color(c) for c in args.colors.split(",")]
     bg = background(args.background, colors, (out_w, out_h), args.grain)
     bg_size = bg.width
+    overlay = Image.open(args.overlay).convert("RGBA").resize((out_w, out_h), Image.LANCZOS) if args.overlay else None
 
     decode = subprocess.Popen(
         ["ffmpeg", "-loglevel", "error", "-i", str(video), "-vf",
@@ -499,7 +503,8 @@ def main():
         scale = wide * zoom / args.scale
         # Layer pixel of the focus point lands in the middle of the frame.
         lx, ly = phone.origin[0] + fx * args.scale, phone.origin[1] + fy * args.scale
-        ox, oy = out_w / 2 - lx * scale, out_h / 2 - ly * scale
+        rest_y = 0.5 + (args.phone_y - 0.5) / zoom
+        ox, oy = out_w / 2 - lx * scale, out_h * rest_y - ly * scale
 
         # The background follows the camera at a quarter of its pace.
         bz = 1 + (zoom - 1) * 0.25
@@ -531,6 +536,13 @@ def main():
                         x = ox + (phone.origin[0] + px * args.scale) * scale
                         y = oy + (phone.origin[1] + py * args.scale) * scale
                         ring(frame, x, y, args.ring_radius * args.scale * scale * share, alpha, args.ring)
+
+        if overlay is not None:
+            shown = min(1.0, max(0.0, 1 - (zoom - 1) / args.overlay_fade))
+            if shown > 0:
+                layer = overlay if shown == 1 else Image.fromarray(
+                    (np.asarray(overlay, np.float32) * [1, 1, 1, ease_in_out(shown)]).astype(np.uint8), "RGBA")
+                frame.alpha_composite(layer)
 
         encode.stdin.write(frame.convert("RGB").tobytes())
         if k % args.fps == 0:
