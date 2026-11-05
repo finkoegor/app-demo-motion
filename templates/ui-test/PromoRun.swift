@@ -34,9 +34,13 @@ final class PromoRun: XCTestCase {
         }
         rest(0.3)
         press(try button("Add", in: screen).center, in: app)
+        // Never query the app right after a press: a snapshot of the accessibility tree
+        // runs on the app's main thread and freezes the button's highlight and whatever
+        // the press opens. Rest first, as long as the opening takes.
+        rest(0.7)
         let name = app.textFields["Name"]
         XCTAssertTrue(name.waitForExistence(timeout: 5))
-        rest(0.4)
+        rest(0.2)
         name.typeText("Video Testing")
         rest(0.15)
         name.typeText("\n")

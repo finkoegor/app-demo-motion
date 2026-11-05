@@ -161,7 +161,11 @@ let a UI test press the controls and have the app only record the touches:
   with `app.snapshot()` and presses points with `coordinate.press(forDuration: 0.1)`. A
   press then costs about half a second, so a row of presses with `rest(0.05)` between
   lands every 0.55 s. With the waits off, the pauses alone must cover each screen's
-  movement: snapshot a sheet only after it has risen.
+  movement: snapshot a sheet only after it has risen. Never query the app right after a
+  press (`waitForExistence`, `snapshot`, an element's frame): the snapshot of the
+  accessibility tree runs on the app's main thread and freezes the button's highlight and
+  the sheet it opens for as long as it takes, which shows as a button stuck lit. Rest
+  first, then query.
 - Seed what the screens show through launch arguments the app reads (sample data, a
   layout, the appearance), so the test starts from the same content every time.
 - Typed text: `typeText` on the focused field. Device Hub connects the Mac's keyboard,
