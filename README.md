@@ -119,9 +119,10 @@ transparent. The hole is found automatically and scaled to the recording, so it 
 be a device of the same shape as the one the recording was made on (every Pro and Pro Max
 since the 14 Pro works).
 
-- The four colors are Apple's Product Bezels (developer.apple.com/design/resources), with
-  real materials, buttons and highlights. Download them there and put the portrait PNGs in
-  `bezels/` under their own names, such as `iPhone 18 Pro Max - Black - Portrait.png`.
+- The colors are Apple's Product Bezels, with real materials, buttons and highlights. Black
+  comes with the repository; for silver, glacier or burgundy download the iPhone 18 Pro Max
+  bezels from developer.apple.com/design/resources and put the portrait PNGs in `bezels/`
+  under their own names, such as `iPhone 18 Pro Max - Silver - Portrait.png`.
 - Any other mockup PNG with a transparent screen works the same way, attach it as a file.
 - With Xcode installed, `swift scripts/chrome.swift "iPhone 17 Pro" bezel.png` renders
   the Simulator's own chrome: exact, but flat.

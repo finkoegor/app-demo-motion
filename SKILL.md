@@ -223,8 +223,8 @@ Options that matter:
   everything and fades it out by `--overlay-fade` (0.12) of zoom, so a logo above the phone never
   peeks from behind a zoomed phone.
 - `--bezel`: `black` by default, or `silver`, `glacier`, `burgundy`: Apple's iPhone 18 Pro
-  Max Product Bezels from `bezels/` (developer.apple.com/design/resources, saved under their
-  own names). Or a PNG of any phone with a transparent screen: the hole is found
+  Max Product Bezels from `bezels/`. Black ships with the repository, the other colors are
+  downloaded from developer.apple.com/design/resources and saved there under their own names. Or a PNG of any phone with a transparent screen: the hole is found
   automatically and scaled to the recording, so any device works if the recording matches
   its shape. `plain`, or a bezel file that isn't there, draws a plain dark body. With Xcode
   installed, `swift scripts/chrome.swift "iPhone 17 Pro" bezel.png` renders the
