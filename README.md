@@ -111,6 +111,17 @@ with what the viewer should read at each step. Then:
 With Claude Code, describe the flow in words ("add an item from a link, show the cutout,
 end on the board") and let the skill wire the targets and write the scenario.
 
+### Real presses
+
+The autopilot runs each control's action, so native controls don't show being pressed: no
+glass lens on the tab bar, no swelling glass button. When that matters, a UI test presses
+them for real (`templates/ui-test/PromoRun.swift`) and the app only records where each
+finger landed (`DemoTouches`, launched with `-DemoTouches`). The template switches off
+XCTest's waits for the app to go idle and presses points read from one snapshot of each
+screen, so a press costs about half a second and the pauses in the script set the pace.
+`scripts/record-uitest.sh` records it without loss from Device Hub, finding the screen in
+the window first.
+
 ## The phone
 
 The phone is Apple's iPhone 18 Pro Max in black by default. `--bezel silver`, `glacier` or
@@ -165,6 +176,10 @@ Zoom or no zoom is a matter of taste; both work.
 `--ring grey` (default) is a grey ring with a white rim and a soft shadow; it stays
 visible over white buttons. `--ring white` is the plain white ring from Telegram's clips.
 `--ring none` turns them off. `--ring-radius` is in screen points.
+
+Glass controls (the tab bar, glass buttons) answer a finger with an animation of their
+own. A press in `taps.json` can carry `"lead"` in seconds to bring its ring earlier, so it
+lands and fades just before that animation: 0.4 on the tab bar, 0.3 on a glass button.
 
 A swipe in the timeline (`"gesture": "swipe"` with an end point and a duration) is drawn
 as a finger travelling with the control; the autopilot template has `swipe(...)` for

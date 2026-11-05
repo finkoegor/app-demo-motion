@@ -16,7 +16,10 @@ live next to this file in `scripts/`; copy them into the project or run them fro
 
 1. The app presses its own buttons. A debug build launched with `-Demo` runs a scripted
    scenario through the same actions a finger triggers, with exact pauses, and writes a
-   timeline of presses (time, point on screen) to its temporary folder.
+   timeline of presses (time, point on screen) to its temporary folder. When the
+   buttons' own press feedback matters (the tab bar's glass lens, a glass button swelling,
+   a highlight), a UI test presses them for real instead and the app records where each
+   finger landed (Step 1b).
 2. `scripts/record.sh` prepares the simulator (appearance, a 9:41 status bar, clipboard,
    saved app state), records the screen with `simctl io recordVideo` and stops when the
    timeline appears. `scripts/record-lossless.sh` records the same run without loss from
@@ -39,7 +42,10 @@ code, settle the scenario together:
   it as a numbered list of presses and waits. If it should loop, it ends where it began.
 - What the viewer must read at each step, and what is only a transition. That decides
   the pauses (a result is held 1.5 to 2.5 s, a transition is not held) and the camera
-  (lean in on what is read, go wide for full-screen effects).
+  (lean in on what is read, go wide for full-screen effects). The pace of Telegram's own
+  clips is fast: a press every half second to a second, a row of quick presses (three
+  check-ins, a few icons) half a second apart, zooms of half a second; a 15 step flow
+  fits in 17 to 20 seconds.
 - Inputs: links, text, photos, accounts. Each one is seeded, not typed live: a link goes
   through the clipboard or a launch argument, a photo sits in the simulator's library,
   typed text is driven through the model in chunks so the keyboard shows and the text
@@ -134,6 +140,42 @@ and reports the middle of the pinched view.
 Without changing the app (not recommended): drive the flow with `xcrun simctl` or the
 simulator tool, write `taps.json` by hand with times measured from the start of the
 recording, and pass `--offset 0` to `compose.py`.
+
+## Step 1b: real presses through a UI test
+
+The autopilot runs each control's action, so a native control doesn't show being pressed:
+no glass lens on the tab bar, no swelling glass button, no highlight. When that matters,
+let a UI test press the controls and have the app only record the touches:
+
+- Copy `templates/swiftui-autopilot/DemoTouches.swift` and `DemoTouchRecorder.swift` (with
+  `DemoTap`, `DemoTimeline`, `DemoTarget` with its `touch` case, and `DemoAutopilot` for
+  `timelineURL`) into the app and call `DemoTouches.start()` in the app's `init`. Launched
+  with `-DemoTouches`, the app writes every touch-down to `demo-taps.json`, through a
+  window gesture recognizer that never takes part in the touch.
+- Copy `templates/ui-test/PromoRun.swift` into the UI test target and write the flow
+  there. It runs only with `PROMO=1`, so it never joins the suite.
+- Pace: XCTest waits for the app to go idle around every event, and asking an element for
+  its frame takes a second or more; both show as dead air. The template turns the idle
+  waits off (`skipWaitingForIdle`, a private switch, test only), reads each screen once
+  with `app.snapshot()` and presses points with `coordinate.press(forDuration: 0.1)`. A
+  press then costs about half a second, so a row of presses with `rest(0.05)` between
+  lands every 0.55 s. With the waits off, the pauses alone must cover each screen's
+  movement: snapshot a sheet only after it has risen.
+- Seed what the screens show through launch arguments the app reads (sample data, a
+  layout, the appearance), so the test starts from the same content every time.
+- Typed text: `typeText` on the focused field. Device Hub connects the Mac's keyboard,
+  which hides the software keyboard; turn it off in Device Hub's toolbar if the keyboard
+  should show.
+
+Record it with `scripts/record-uitest.sh` (lossless, Step 2b), which finds the screen in
+the window, starts the capture and runs the one test:
+
+```
+PROJECT=~/MyApp SCHEME=MyApp TEST=MyAppUITests/PromoRun/testPromo APPEARANCE=dark TIME=9:41 POINTS=440 \
+  scripts/record-uitest.sh ~/takes/take1 <simulator udid> com.example.app
+```
+
+Build first: `xcodebuild build-for-testing -scheme MyApp -destination id=<udid> -derivedDataPath ~/takes/dd`.
 
 ## Step 2: the take
 
@@ -237,8 +279,16 @@ Options that matter:
   every press and back out) or a JSON file of moves: `at` as seconds or `tap<N>±seconds`, `zoom`, `focus` in screen points,
   `duration`. Move in on details (a form, a picture being processed), move out before
   a big effect that needs the whole screen, and end wide. See `examples/camera.json`.
+  Presses count from 1 (`tap1` is the first). Frame a press near an edge of the screen so
+  the zoomed shot keeps the phone's edge at the frame's edge rather than in the middle:
+  at a zoom of 1.6 the frame shows about 725 points of a 956 point screen, so a button at
+  the bottom wants a focus some 320 points above the screen's bottom.
 - `--ring`: `grey` (grey with a white rim and shadow, readable over white buttons),
   `white` (the Telegram look) or `none`; `--ring-radius` in points (40).
+- A press in `taps.json` can carry `"lead"`: seconds the ring comes earlier than usual.
+  Glass controls answer the finger with an animation of their own (the tab bar's lens
+  sliding over, a glass button swelling) that a ring on top muddles; `"lead": 0.4` on a
+  tab bar press and 0.3 on a glass button let the ring land and fade just before it.
 - `--lead` and `--tail`: rest before the first press and after the last one.
 - `--offset`: overrides the automatic sync when the first screen change is not caused
   by the press (a spinner was running) or the timeline is hand made.
@@ -255,7 +305,8 @@ clips elsewhere) and say its path.
 ## Check the result before handing it over
 
 Pull frames and look: `ffmpeg -i promo.mp4 -vf "fps=2,scale=240:-1,tile=6x4" -frames:v 1 sheet.png`.
-Look for: the status bar reads 9:41; the ring lands exactly before the screen reacts and
+Look for: the status bar reads 9:41; the ring lands exactly before the screen reacts (and
+fades before a glass control's own animation) and
 a swipe's ring stays on the moving control; the phone's corners are hidden by the bezel;
 the first and last frames rest on calm screens; the camera never cuts off what the
 viewer should read. For a seamless loop, script the flow to return to the starting
@@ -287,6 +338,11 @@ for stripes. To see the frame rate of the motion itself, list the recording's fr
   Space, hidden), and a command-line tool needs `NSApplication.shared` touched before it
   captures, or CoreGraphics asserts. Calls with completion handlers resolve to the
   synchronous overload in top-level code; wrap them in a continuation.
+- Device Hub can draw the device at another size after the simulator reboots; measure
+  the screen in the window before every take (record-uitest.sh does), or the capture
+  takes the wrong part of the window.
+- With parallel testing on, xcodebuild runs a UI test on a clone of the simulator that
+  Device Hub doesn't show: pass `-parallel-testing-enabled NO`.
 - The window recording is only as sharp as the window: zoom the device up first. At 836 px
   wide it fills a 1440 by 2160 frame at almost one to one.
 - A swiped control must move along `DemoSwipe.ease` over the swipe's duration, or the ring

@@ -82,7 +82,7 @@ for k in range(frames):
                 continue
             point, share, alpha = finger
         else:
-            share, alpha = compose.ring_shape(t - tap["time"] + compose.RING_LEAD)
+            share, alpha = compose.ring_shape(t - tap["time"] + compose.RING_LEAD + tap.get("lead", 0))
             point = (tap["x"], tap["y"])
         if alpha > 0:
             x = ox + (phone.origin[0] + point[0] * args.scale) * s

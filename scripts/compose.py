@@ -284,7 +284,7 @@ def tap_time(text, taps):
     for i, c in enumerate(rest):
         if c in "+-":
             return taps[int(rest[:i]) - 1]["time"] + float(rest[i:])
-    return taps[int(rest)]["time"] if rest else taps[0]["time"]
+    return taps[int(rest) - 1]["time"] if rest else taps[0]["time"]
 
 
 def camera_moves(spec, taps, center):
@@ -330,7 +330,10 @@ def ring(frame, cx, cy, radius, alpha, style):
     white buttons, or plain white as in the reference clips."""
     if alpha <= 0.01 or radius < 1:
         return
-    r = int(radius + 16)
+    # Room for the shadow: its blur reaches about three times its radius past the ring,
+    # and it sits a little lower.
+    blur = radius * 0.12 + 2
+    r = int(radius + 3 * blur + radius * 0.05 + 4)
     x0, y0 = int(cx) - r, int(cy) - r
     ys, xs = np.mgrid[y0:y0 + 2 * r, x0:x0 + 2 * r].astype(np.float32)
     d = np.hypot(xs + 0.5 - cx, ys + 0.5 - cy)
@@ -343,7 +346,7 @@ def ring(frame, cx, cy, radius, alpha, style):
         frame.alpha_composite(Image.fromarray(spot.astype(np.uint8), "RGBA"), (x0, y0))
         return
     rim = np.clip(np.exp(-((d - radius + 1) / 1.1) ** 2) + np.exp(-((d - inner - 1) / 1.1) ** 2), 0, 1) * body
-    shadow = Image.fromarray((body * 255).astype(np.uint8), "L").filter(ImageFilter.GaussianBlur(radius * 0.12 + 2))
+    shadow = Image.fromarray((body * 255).astype(np.uint8), "L").filter(ImageFilter.GaussianBlur(blur))
     shade = np.zeros((2 * r, 2 * r, 4), np.uint8)
     shade[..., 3] = (np.asarray(shadow, np.float32) * 0.35 * alpha).astype(np.uint8)
     frame.alpha_composite(Image.fromarray(shade, "RGBA"), (x0, y0 + max(1, int(radius * 0.05))))
@@ -547,7 +550,7 @@ def main():
                     point, share, alpha = finger
                     points = [point]
                 else:
-                    share, alpha = ring_shape(t - tap["time"] + RING_LEAD)
+                    share, alpha = ring_shape(t - tap["time"] + RING_LEAD + tap.get("lead", 0))
                     points = [(tap["x"], tap["y"])]
                 if alpha > 0:
                     for px, py in points:
