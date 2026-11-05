@@ -75,11 +75,13 @@ final class PromoRun: XCTestCase {
         Thread.sleep(forTimeInterval: seconds)
     }
 
-    /// XCTest waits before and after every event until the app stops animating; telling
-    /// it to skip those waits leaves the timing to the script. Private API, test only.
+    /// XCTest waits before every event until the app stops animating; telling it to skip
+    /// that wait leaves the timing to the script. Private API, test only.
     private static func skipWaitingForIdle() {
         guard let process = NSClassFromString("XCUIApplicationProcess") else { return }
-        for name in ["shouldSkipPreEventQuiescence", "shouldSkipPostEventQuiescence"] {
+        // Only the wait before an event: skipping the one after it too leaves the touch
+        // up late, and a pressed button stays lit twice as long.
+        for name in ["shouldSkipPreEventQuiescence"] {
             guard let method = class_getInstanceMethod(process, NSSelectorFromString(name)) else { continue }
             let skip: @convention(block) (AnyObject) -> Bool = { _ in true }
             method_setImplementation(method, imp_implementationWithBlock(skip))
