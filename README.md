@@ -6,7 +6,7 @@ leaning in on the action or holding still, a ring pulsing under every tap and fo
 every swipe.
 
 The clip is one unbroken take. The app presses its own buttons on a timer, the
-Simulator records the screen (or ScreenCaptureKit records it without loss), a script
+Simulator's screen is recorded without loss straight from its framebuffer, a script
 puts the recording into a phone bezel, adds the background, the camera moves and the
 rings, and encodes 60 fps H.264, or HEVC in 10 bits.
 
@@ -17,6 +17,12 @@ plain zsh, Python and Swift.
 
 ```
 git clone https://github.com/finkoegor/telegram-style-motion ~/.claude/skills/telegram-style-motion
+```
+
+Without git:
+
+```
+mkdir -p ~/.claude/skills/telegram-style-motion && curl -L https://github.com/finkoegor/telegram-style-motion/archive/refs/heads/main.tar.gz | tar -xz --strip-components=1 -C ~/.claude/skills/telegram-style-motion
 ```
 
 Or for one project only, into its `.claude/skills/telegram-style-motion`. Start a new
