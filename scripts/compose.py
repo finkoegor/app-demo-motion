@@ -37,6 +37,9 @@ PINCH_ANGLE = math.radians(-38)
 # pixels apart, so the filter looks that far around each pixel.
 DEBAND = "deband=1thr=0.02:2thr=0.02:3thr=0.02:range=48:direction=-3.14159:blur=1"
 
+# Apple's iPhone 18 Pro Max bezels, by color, looked for in bezels/ next to scripts/.
+BEZELS = Path(__file__).resolve().parent.parent / "bezels"
+BEZEL_COLORS = ["black", "silver", "glacier", "burgundy"]
 DEFAULT_COLORS = ["#c9b8ff", "#ffc9a8", "#9fd8ff", "#ffb3d1", "#c4e2ff"]
 # Where the gradient's colors sit, as shares of the canvas, for up to eight colors.
 COLOR_SPOTS = [(0.08, 0.12), (0.92, 0.08), (0.10, 0.92), (0.90, 0.90), (0.50, 0.55), (0.50, 0.05), (0.05, 0.50), (0.95, 0.50)]
@@ -422,7 +425,7 @@ def parse_args():
     parser.add_argument("out", type=Path, help="the clip to write")
     parser.add_argument("--size", default="1920x1920", help="output size, like 1920x1920, 1080x1350 or 1080x1920")
     parser.add_argument("--fps", type=int, default=FPS)
-    parser.add_argument("--bezel", type=Path, help="PNG of a phone with a transparent screen; a plain one is drawn without it")
+    parser.add_argument("--bezel", default="black", help="black, silver, glacier or burgundy for the iPhone 18 Pro Max bezels in bezels/, a PNG of a phone with a transparent screen, or plain for a drawn body")
     parser.add_argument("--corner", type=float, default=55, help="screen corner radius in points for the drawn bezel")
     parser.add_argument("--scale", type=float, default=3, help="recording pixels per screen point")
     parser.add_argument("--share", type=float, default=0.86, help="share of the frame's height the phone takes in the wide shot")
@@ -442,7 +445,22 @@ def parse_args():
     parser.add_argument("--noise", type=float, default=1.5, help="film grain over the whole clip, so the encoder keeps gradients smooth; 0 for none")
     parser.add_argument("--grain", type=float, default=1.6, help="noise over a background picture, against banding")
     parser.add_argument("--offset", type=float, help="recording time of the run's start; found from the frames when omitted")
-    return parser.parse_args()
+    args = parser.parse_args()
+    args.bezel = bezel_path(args.bezel)
+    return args
+
+
+def bezel_path(choice):
+    """The bezel file for a color name or a path; None draws a plain body."""
+    if choice == "plain":
+        return None
+    if choice.lower() in BEZEL_COLORS:
+        path = BEZELS / f"iPhone 18 Pro Max - {choice.capitalize()} - Portrait.png"
+        if path.exists():
+            return path
+        print(f"No {path.name} in {BEZELS}, drawing a plain body (see README, The phone)", file=sys.stderr)
+        return None
+    return Path(choice)
 
 
 def main():

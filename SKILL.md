@@ -199,14 +199,14 @@ resolution nor a lower CRF brings it back. Record the window instead:
 
 ```
 python3 scripts/compose.py ~/takes/take1 ~/takes/promo.mp4 \
-  --bezel bezel.png --camera camera.json --colors "#c9b8ff,#ffc9a8,#9fd8ff,#ffb3d1"
+  --camera camera.json --colors "#c9b8ff,#ffc9a8,#9fd8ff,#ffb3d1"
 ```
 
 A steady camera from a lossless take, in 10 bits:
 
 ```
 python3 scripts/compose10.py ~/takes/take1 ~/takes/promo --size 1440x2160 \
-  --bezel bezel.png --background ~/Desktop/background.jpg
+  --background ~/Desktop/background.jpg
 ```
 
 writes `promo.mp4` (H.264 dithered down from 10 bits, plays everywhere) and
@@ -222,10 +222,11 @@ Options that matter:
   brings it back to the middle), `--overlay logo.png` draws a frame-sized transparent PNG over
   everything and fades it out by `--overlay-fade` (0.12) of zoom, so a logo above the phone never
   peeks from behind a zoomed phone.
-- `--bezel`: a PNG of a phone with a transparent screen. The hole is found automatically
-  and scaled to the recording, so any device works if the recording matches it. Best
-  source: Apple's Product Bezels from developer.apple.com/design/resources, which have
-  real materials and buttons. Without `--bezel` a plain dark body is drawn. With Xcode
+- `--bezel`: `black` by default, or `silver`, `glacier`, `burgundy`: Apple's iPhone 18 Pro
+  Max Product Bezels from `bezels/` (developer.apple.com/design/resources, saved under their
+  own names). Or a PNG of any phone with a transparent screen: the hole is found
+  automatically and scaled to the recording, so any device works if the recording matches
+  its shape. `plain`, or a bezel file that isn't there, draws a plain dark body. With Xcode
   installed, `swift scripts/chrome.swift "iPhone 17 Pro" bezel.png` renders the
   Simulator's own chrome, flat but exact.
 - `--background`: `gradient` (default) with `--colors` as a comma list of hex values,

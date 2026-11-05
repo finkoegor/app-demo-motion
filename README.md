@@ -48,7 +48,7 @@ you paste the repository link and ask it to.
 3. Build the clip:
 
    ```
-   python3 scripts/compose.py ~/takes/take1 ~/takes/promo.mp4 --bezel bezel.png --camera auto
+   python3 scripts/compose.py ~/takes/take1 ~/takes/promo.mp4 --camera auto
    ```
 
 That is a square 1920 clip with the default gradient. Read on for the knobs.
@@ -83,7 +83,7 @@ window instead:
 4. Build it in 10 bits with a steady camera:
 
    ```
-   python3 scripts/compose10.py ~/takes/take1 ~/takes/promo --size 1440x2160 --bezel bezel.png --background art.jpg
+   python3 scripts/compose10.py ~/takes/take1 ~/takes/promo --size 1440x2160 --background art.jpg
    ```
 
    `promo.mp4` is H.264 dithered from 10 bits and plays everywhere; `promo-10bit.mp4` is
@@ -113,16 +113,19 @@ end on the board") and let the skill wire the targets and write the scenario.
 
 ## The phone
 
-Pass `--bezel` with a PNG of a phone whose screen is transparent. The hole is found
-automatically and scaled to the recording, so it only has to be the same device the
-recording was made on (same aspect ratio).
+The phone is Apple's iPhone 18 Pro Max in black by default. `--bezel silver`, `glacier` or
+`burgundy` picks another color, `--bezel phone.png` takes any PNG of a phone whose screen is
+transparent. The hole is found automatically and scaled to the recording, so it only has to
+be a device of the same shape as the one the recording was made on (every Pro and Pro Max
+since the 14 Pro works).
 
-- Best: Apple's Product Bezels (developer.apple.com/design/resources). Real materials,
-  buttons and highlights. Pick the device and color you like and pass the portrait PNG.
+- The four colors are Apple's Product Bezels (developer.apple.com/design/resources), with
+  real materials, buttons and highlights. Download them there and put the portrait PNGs in
+  `bezels/` under their own names, such as `iPhone 18 Pro Max - Black - Portrait.png`.
 - Any other mockup PNG with a transparent screen works the same way, attach it as a file.
 - With Xcode installed, `swift scripts/chrome.swift "iPhone 17 Pro" bezel.png` renders
   the Simulator's own chrome: exact, but flat.
-- Without `--bezel` a plain dark body is drawn.
+- `--bezel plain`, or a missing file, draws a plain dark body.
 
 The screen's own corners stay square in the recording; the bezel's hole shape hides them.
 The Dynamic Island is in the recording already.
@@ -198,6 +201,15 @@ is better: external taps drift, and the first taps after a boot land late.
   `ffmpeg -i promo.mp4 -vf "fps=2,scale=240:-1,tile=6x4" -frames:v 1 sheet.png`
 - A press off the screen in `taps.json` (compose warns about it) is a stale point,
   usually a control in a row that scrolled after it was measured; fix it by hand.
+- A transition that looks jerkier than on the phone: count the take's frame gaps. The
+  Simulator records at up to 60 frames a second, a ProMotion iPhone shows 120, so every
+  take is a little coarser than the device; real drops show as gaps over 40 ms:
+  `ffprobe -v error -select_streams v -show_entries frame=pts_time -of csv=p=0 rec.mp4`
+  and look for steps between 0.04 and 0.1 s (longer ones are the screen standing still).
+  Drops that run for a second or more at one moment are an animation the Simulator draws on
+  the CPU frame by frame, such as a Canvas with thousands of cells; building the app with
+  `SWIFT_OPTIMIZATION_LEVEL=-O` didn't change them in a test (22 against 33 drops, noise).
+  Shorten that moment in the scenario, cut around it, or record that part on a device.
 
 ## License
 
