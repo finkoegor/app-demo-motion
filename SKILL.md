@@ -229,7 +229,7 @@ they are smooth on the device and in `simctl io screenshot`, but `simctl io reco
 compresses the dithering away and leaves bands about 40 px apart. Neither a higher output
 resolution nor a lower CRF brings it back. Record without compression instead.
 
-`scripts/simcapture.swift` takes the frames where Device Hub and `simctl` take them: the
+`scripts/simcapture.swift` reads frames from the same place Device Hub and `simctl` read from: the
 screen's IOSurface, through CoreSimulator's private IO client (`SimDevice.io`, the port
 whose descriptor answers `registerScreenCallbacksWithUUID:...`, the one screen with power
 on). Each new frame is copied out and written as ProRes 422 HQ at the device's pixel size

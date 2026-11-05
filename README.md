@@ -10,10 +10,6 @@ Simulator's screen is recorded without loss straight from its framebuffer, a scr
 puts the recording into a phone bezel, adds the background, the camera moves and the
 rings, and encodes 60 fps H.264, or HEVC in 10 bits.
 
-Heavy animations (a sheet full of content, a big Canvas, confetti) can stutter in the
-take even when they run smoothly on a phone: the Simulator draws them slower. Keep such
-moments short or cut around them.
-
 This repository is a skill for Claude Code. It also works by hand: the scripts are
 plain zsh, Python and Swift.
 
@@ -47,7 +43,7 @@ you paste the repository link and ask it to.
 1. Teach the app the flow. For SwiftUI, copy `templates/swiftui-autopilot/` into the app
    target, name the controls in `DemoTarget`, mark them with `.demoTarget(.name) { action }`
    and write the flow in `DemoAutopilot.run()`. Launched with `-Demo`, the app runs the
-   flow and writes the timeline of presses. Nothing of this ships: it is all `#if DEBUG`.
+   flow and writes the timeline of presses. None of it ships: it's all behind `#if DEBUG`.
 
 2. Record a take:
 
@@ -61,19 +57,19 @@ you paste the repository link and ask it to.
    python3 scripts/compose.py ~/takes/take1 ~/takes/promo.mp4 --camera auto
    ```
 
-That is a square 1920 clip with the default gradient. Read on for the knobs.
+That's a square 1920 clip with the default gradient. Read on for the knobs.
 
 `TIME=9:41` reboots the simulator in the en_US region for the take, so the bar reads
 9:41 and not 09:41, and puts the region back after.
 
 ## Smooth gradients: the lossless take
 
-`simctl io recordVideo` compresses hard, and soft dark gradients (glows, fades) come out
-in bands that no setting fixes afterwards. If the app has them, record without
-compression. `scripts/simcapture.swift` takes the frames straight from the simulator's
-framebuffer, where Device Hub and `simctl` take them, and writes ProRes 422 HQ at the
-device's own pixel size, only when the screen changes, up to 60 a second. No window is
-involved, so the Mac stays free to work on while it records.
+`simctl io recordVideo` compresses hard, so soft dark gradients (glows, fades) come out
+banded, and no setting fixes that afterwards. If your app has them, record without
+compression. `scripts/simcapture.swift` reads frames from the same place Device Hub and
+`simctl` read from: the simulator's framebuffer. It writes ProRes 422 HQ at the device's
+own pixel size, only when the screen changes, up to 60 frames a second. No window is
+involved, so you can keep working on the Mac while it records.
 
 1. Record:
 
@@ -94,12 +90,16 @@ involved, so the Mac stays free to work on while it records.
    HEVC Main 10, smooth wherever 10 bits play. `compose.py` reads lossless takes too, for
    clips with camera moves.
 
-simcapture uses CoreSimulator's private IO client, so a new Xcode may move it. The
-fallback is the window: `CAPTURE=window SCREEN="x y w h" scripts/record-lossless.sh ...`
-records the device as Device Hub shows it through ScreenCaptureKit (`scripts/capture.swift`),
-only as sharp as the window; find `SCREEN` with `scripts/capture --snapshot window.png
-"<device>"`, `xcrun simctl io <udid> screenshot shot.png` and `python3
-scripts/find_screen.py window.png shot.png`, and leave the window on screen while it runs.
+If simcapture stops working, record the Device Hub window instead:
+`CAPTURE=window SCREEN="x y w h" scripts/record-lossless.sh ...`. It captures through
+ScreenCaptureKit (`scripts/capture.swift`) and is only as sharp as the window, which has to
+stay on screen while it runs. To find `SCREEN`:
+
+```
+scripts/capture --snapshot window.png "<device>"
+xcrun simctl io <udid> screenshot shot.png
+python3 scripts/find_screen.py window.png shot.png
+```
 
 ## Your own flow
 
@@ -116,7 +116,7 @@ with what the viewer should read at each step. Then:
   simulator's library, typed text through the model in chunks;
 - save the app state the clip should start from and restore it before every take
   (`STATE_DIR`);
-- plan the camera from the same list: lean in where there is something to read, go wide
+- plan the camera from the same list: lean in where there's something to read, go wide
   before full-screen effects, end wide.
 
 With Claude Code, describe the flow in words ("add an item from a link, show the cutout,
@@ -227,18 +227,21 @@ is better: external taps drift, and the first taps after a boot land late.
   `ffmpeg -i promo.mp4 -vf "fps=2,scale=240:-1,tile=6x4" -frames:v 1 sheet.png`
 - A press off the screen in `taps.json` (compose warns about it) is a stale point,
   usually a control in a row that scrolled after it was measured; fix it by hand.
-- A transition that looks jerkier than on the phone: count the take's frame gaps. The
-  Simulator records at up to 60 frames a second, a ProMotion iPhone shows 120, so every
-  take is a little coarser than the device; real drops show as gaps over 40 ms:
+
+## Limits
+
+- The Simulator draws heavy animations (a sheet full of content, a big Canvas, confetti)
+  slower than a phone, so they can stutter in the take even when they're smooth on the
+  device. Keep such moments short, cut around them, or record that part on a device.
+- The Simulator records at up to 60 frames a second, and a ProMotion iPhone shows 120, so
+  every take is a little coarser than the device.
+- An optimized build doesn't help: the time goes to SwiftUI and the system, not to the
+  app's own code.
+- To find real drops, list the frame times and look for steps between 0.04 and 0.1 s
+  (longer ones are the screen standing still):
   `ffprobe -v error -select_streams v -show_entries frame=pts_time -of csv=p=0 rec.mp4`
-  and look for steps between 0.04 and 0.1 s (longer ones are the screen standing still).
-  Drops that run for a second or more at one moment are an animation the Simulator draws on
-  the CPU frame by frame, such as a Canvas with thousands of cells. An optimized build
-  doesn't change them: the same run taken twice from the framebuffer lost 106 and 106
-  frames in Debug, 112 and 98 with `SWIFT_OPTIMIZATION_LEVEL=-O
-  SWIFT_COMPILATION_MODE=wholemodule` (DEBUG kept for the demo code). The time goes to
-  SwiftUI and the system, which are optimized in both, not to the app's own code.
-  Shorten that moment in the scenario, cut around it, or record that part on a device.
+- simcapture relies on CoreSimulator's private API, so a new Xcode may break it. The window
+  capture above is the fallback.
 
 ## License
 
