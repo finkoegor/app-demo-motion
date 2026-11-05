@@ -199,27 +199,6 @@ is better: external taps drift, and the first taps after a boot land late.
 - A press off the screen in `taps.json` (compose warns about it) is a stale point,
   usually a control in a row that scrolled after it was measured; fix it by hand.
 
-## Russian
-
-Установка: `git clone https://github.com/finkoegor/telegram-style-motion ~/.claude/skills/telegram-style-motion`,
-потом новая сессия Claude Code в папке приложения и просьба своими словами («сделай
-промо-ролик: добавление вещи по ссылке, тёмная тема, наш градиент») или команда
-`/telegram-style-motion`. Можно просто скинуть Claude ссылку на репозиторий и попросить
-установить.
-
-
-Скилл для Claude Code и три скрипта, чтобы снимать промо-ролики iOS-приложения в
-стиле Telegram: телефон на градиенте, приложение внутри, камера наезжает на действие,
-кольцо под каждым тапом. Сценарий у каждого свой: описываешь флоу словами (с какого
-экрана, какие нажатия, чем заканчивается), скилл помечает нужные кнопки в коде и
-пишет сценарий, приложение само нажимает их по таймеру (шаблон для SwiftUI в
-`templates/`), симулятор пишет экран (`scripts/record.sh`), скрипт собирает ролик
-(`scripts/compose.py`). Рамка телефона: Product Bezels с сайта Apple или любой
-свой PNG с прозрачным экраном через `--bezel`; фон: фирменный градиент через
-`--colors`, цвет или своя картинка через `--background`; камера с наездами
-(`--camera auto` или свой JSON) или без зума (`--camera none`), как нравится;
-формат `--size`. Статус-бар всегда 9:41. Если в приложении мягкие тёмные градиенты,
-запись без потерь через окно симулятора (`record-lossless.sh`) и сборка в 10 бит
-(`compose10.py`) убирают полосы. Подробности выше.
+## License
 
 MIT.
