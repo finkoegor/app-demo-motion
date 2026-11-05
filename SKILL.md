@@ -231,6 +231,10 @@ APPEARANCE=dark TIME=9:41 POINTS=440 scripts/record-lossless.sh ~/takes/take1 <u
 scripts/simcapture --snapshot frame.png <udid>    # one frame, to check
 ```
 
+The colors are the app's own: the framebuffer matches `simctl io screenshot` pixel for
+pixel, and ProRes keeps them within one step. The window capture ran the picture through
+the Mac's display pipeline and came out more saturated than the app draws.
+
 It leans on private API, so a new Xcode may move it; `simctl io recordVideo` and the
 window capture below are the fallbacks.
 
@@ -311,7 +315,8 @@ Options that matter:
 - A press in `taps.json` can carry `"lead"`: seconds the ring comes earlier than usual.
   Glass controls answer the finger with an animation of their own (the tab bar's lens
   sliding over, a glass button swelling) that a ring on top muddles; `"lead": 0.4` on a
-  tab bar press and 0.3 on a glass button let the ring land and fade just before it.
+  tab bar press and 0.15 on a glass button let the ring land and fade just before it;
+  more and the ring reads as coming before the finger.
 - `--lead` and `--tail`: rest before the first press and after the last one.
 - `--offset`: overrides the automatic sync when the first screen change is not caused
   by the press (a spinner was running) or the timeline is hand made.
