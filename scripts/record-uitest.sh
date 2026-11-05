@@ -1,18 +1,17 @@
 #!/bin/zsh
 # Records a run that a UI test plays with real touches (templates/ui-test/PromoRun.swift),
-# without loss: the device's screen from its Device Hub window through capture, while
-# xcodebuild runs the one test. The app, launched by the test with `-DemoTouches`, writes
+# without loss: the device's screen straight from the simulator's framebuffer through
+# simcapture (the device's own pixel size, no window needed), while xcodebuild runs the
+# one test. CAPTURE=window records the Device Hub window instead, as capture does. The app, launched by the test with `-DemoTouches`, writes
 # where each finger landed. Leaves rec.mov, rec.json and taps.json in <out-dir>.
 #
 # Usage: PROJECT=<project folder> SCHEME=<scheme> TEST=<Target/Class/testMethod> \
 #   record-uitest.sh <out-dir> <simulator-udid> <bundle-id>
 #
 # Before a take: the simulator booted (in the en_US region for 9:41 without a zero, see
-# record.sh), `xcodebuild build-for-testing` into DERIVED, Device Hub showing the device
-# with the sidebar hidden and the device zoomed as large as the window allows. The screen
-# is found in the window at the start of every take: Device Hub can draw the device at
-# another size after a reboot. The window must stay on screen and untouched while it
-# records; ask the person for the screen if they are working.
+# record.sh) and `xcodebuild build-for-testing` into DERIVED. With CAPTURE=window, Device
+# Hub must also show the device, sidebar hidden, zoomed as large as the window allows, and
+# stay on screen untouched while it records.
 #
 # Environment: APPEARANCE (dark or light), TIME (9:41), DERIVED (the derived data folder,
 # default <out-dir>/../dd), WINDOW (the window's title, default the device's name), POINTS
@@ -28,7 +27,6 @@ DERIVED=${DERIVED:-${OUT:h}/dd}
 WINDOW=${WINDOW:-$(xcrun simctl list devices | grep "$SIM" | sed -E 's/^ *(.*) \([0-9A-F-]{36}\).*/\1/')}
 POINTS=${POINTS:-402}
 FLAG=${FLAG:-PROMO}
-[[ -x $HERE/capture ]] || swiftc -O $HERE/capture.swift -o $HERE/capture
 mkdir -p $OUT
 rm -f $OUT/rec.mov $OUT/rec.json $OUT/taps.json
 
@@ -41,18 +39,21 @@ fi
 DATA=$(xcrun simctl get_app_container $SIM $APP data 2>/dev/null || true)
 [[ -n "$DATA" ]] && rm -f "$DATA/tmp/demo-taps.json"
 
-# Device Hub may sit in its own full-screen space; bringing it forward switches to it.
-osascript -e 'tell application id "com.apple.dt.Devices" to activate'
-sleep 3
-$HERE/capture --snapshot $OUT/window.png "$WINDOW" >/dev/null
-xcrun simctl io $SIM screenshot $OUT/screen.png >/dev/null 2>&1
-SCREEN=($(python3 $HERE/find_screen.py $OUT/window.png $OUT/screen.png))
-rm -f $OUT/window.png $OUT/screen.png
-echo "screen at $SCREEN"
-
-$HERE/capture $OUT/rec.mov "$WINDOW" $SCREEN $POINTS &
+if [[ "${CAPTURE:-framebuffer}" == window ]]; then
+  # The old way: the device's screen as Device Hub shows it, which must stay on screen.
+  osascript -e 'tell application id "com.apple.dt.Devices" to activate'
+  sleep 3
+  $HERE/capture --snapshot $OUT/window.png "$WINDOW" >/dev/null
+  xcrun simctl io $SIM screenshot $OUT/screen.png >/dev/null 2>&1
+  SCREEN=($(python3 $HERE/find_screen.py $OUT/window.png $OUT/screen.png))
+  rm -f $OUT/window.png $OUT/screen.png
+  $HERE/capture $OUT/rec.mov "$WINDOW" $SCREEN $POINTS &
+else
+  [[ -x $HERE/simcapture ]] || swiftc -O $HERE/simcapture.swift -o $HERE/simcapture
+  $HERE/simcapture $OUT/rec.mov $SIM $POINTS &
+fi
 CAP=$!
-sleep 3
+sleep 2
 # One device, no clones: with parallel testing on, xcodebuild runs the test on a copy of
 # the simulator that the window doesn't show.
 (cd $PROJECT && env TEST_RUNNER_$FLAG=1 xcodebuild test-without-building -scheme $SCHEME -destination "id=$SIM" \

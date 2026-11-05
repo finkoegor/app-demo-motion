@@ -59,28 +59,22 @@ That is a square 1920 clip with the default gradient. Read on for the knobs.
 ## Smooth gradients: the lossless take
 
 `simctl io recordVideo` compresses hard, and soft dark gradients (glows, fades) come out
-in bands that no setting fixes afterwards. If the app has them, record the simulator's
-window instead:
+in bands that no setting fixes afterwards. If the app has them, record without
+compression. `scripts/simcapture.swift` takes the frames straight from the simulator's
+framebuffer, where Device Hub and `simctl` take them, and writes ProRes 422 HQ at the
+device's own pixel size, only when the screen changes, up to 60 a second. No window is
+involved, so the Mac stays free to work on while it records.
 
-1. Open the booted simulator in Device Hub (Xcode 27) or Simulator, hide the sidebar,
-   zoom the device in as far as the window allows.
-2. Find the screen in the window:
-
-   ```
-   swiftc -O scripts/capture.swift -o scripts/capture
-   scripts/capture --snapshot window.png "iPhone 17 Pro"
-   xcrun simctl io <udid> screenshot screenshot.png
-   python3 scripts/find_screen.py window.png screenshot.png
-   ```
-
-   macOS asks once for Screen Recording permission.
-3. Record, leaving the window alone while it runs:
+1. Record:
 
    ```
-   SCREEN="655.5 93 418 907" APPEARANCE=dark TIME=9:41 scripts/record-lossless.sh ~/takes/take1 <udid> com.example.app -Demo
+   swiftc -O scripts/simcapture.swift -o scripts/simcapture
+   APPEARANCE=dark TIME=9:41 POINTS=440 scripts/record-lossless.sh ~/takes/take1 <udid> com.example.app -Demo
    ```
 
-4. Build it in 10 bits with a steady camera:
+   `POINTS` is the screen's width in points (440 on an iPhone 18 Pro Max, 402 on a 17 Pro).
+   `scripts/simcapture --snapshot frame.png <udid>` saves one frame to check.
+2. Build it in 10 bits with a steady camera:
 
    ```
    python3 scripts/compose10.py ~/takes/take1 ~/takes/promo --size 1440x2160 --background art.jpg
@@ -89,6 +83,13 @@ window instead:
    `promo.mp4` is H.264 dithered from 10 bits and plays everywhere; `promo-10bit.mp4` is
    HEVC Main 10, smooth wherever 10 bits play. `compose.py` reads lossless takes too, for
    clips with camera moves.
+
+simcapture uses CoreSimulator's private IO client, so a new Xcode may move it. The
+fallback is the window: `CAPTURE=window SCREEN="x y w h" scripts/record-lossless.sh ...`
+records the device as Device Hub shows it through ScreenCaptureKit (`scripts/capture.swift`),
+only as sharp as the window; find `SCREEN` with `scripts/capture --snapshot window.png
+"<device>"`, `xcrun simctl io <udid> screenshot shot.png` and `python3
+scripts/find_screen.py window.png shot.png`, and leave the window on screen while it runs.
 
 ## Your own flow
 
@@ -119,8 +120,7 @@ them for real (`templates/ui-test/PromoRun.swift`) and the app only records wher
 finger landed (`DemoTouches`, launched with `-DemoTouches`). The template switches off
 XCTest's waits for the app to go idle and presses points read from one snapshot of each
 screen, so a press costs about half a second and the pauses in the script set the pace.
-`scripts/record-uitest.sh` records it without loss from Device Hub, finding the screen in
-the window first.
+`scripts/record-uitest.sh` records it without loss from the simulator's framebuffer.
 
 ## The phone
 

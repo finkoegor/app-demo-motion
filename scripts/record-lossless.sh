@@ -1,13 +1,16 @@
 #!/bin/zsh
-# Records one scripted run of an app without loss: the simulator's screen from its window
-# (Device Hub in Xcode 27) through capture, ScreenCaptureKit to ProRes, instead of
-# `simctl io recordVideo`, whose compression turns soft dark gradients into bands.
+# Records one scripted run of an app without loss, instead of `simctl io recordVideo`,
+# whose compression turns soft dark gradients into bands. By default the frames come
+# straight from the simulator's framebuffer through simcapture, at the device's own pixel
+# size, with no window involved. CAPTURE=window records the Device Hub window through
+# capture (ScreenCaptureKit) instead, as sharp as the window is.
 #
-# Usage: SCREEN="x y width height" record-lossless.sh <out-dir> <simulator-udid> <bundle-id> [launch arguments...]
+# Usage: record-lossless.sh <out-dir> <simulator-udid> <bundle-id> [launch arguments...]
+#        CAPTURE=window SCREEN="x y width height" record-lossless.sh ...
 #
-# Before the first take, by hand: open Device Hub on the booted simulator, hide the
-# sidebar, zoom the device as large as the window allows, then find SCREEN, the screen's
-# rectangle in the window in points:
+# For CAPTURE=window, before the first take, by hand: open Device Hub on the booted
+# simulator, hide the sidebar, zoom the device as large as the window allows, then find
+# SCREEN, the screen's rectangle in the window in points:
 #   swiftc -O capture.swift -o capture
 #   ./capture --snapshot window.png "<device name>"
 #   xcrun simctl io <udid> screenshot screenshot.png
@@ -26,10 +29,15 @@ SIM=${2:?simulator udid}
 APP=${3:?bundle id}
 shift 3
 HERE=${0:A:h}
-: ${SCREEN:?set SCREEN to the screen rectangle from find_screen.py}
+CAPTURE=${CAPTURE:-framebuffer}
+[[ $CAPTURE == window ]] && : ${SCREEN:?set SCREEN to the screen rectangle from find_screen.py}
 WINDOW=${WINDOW:-$(xcrun simctl list devices | grep "$SIM" | sed -E 's/^ *(.*) \([0-9A-F-]{36}\).*/\1/')}
 POINTS=${POINTS:-402}
-[[ -x $HERE/capture ]] || swiftc -O $HERE/capture.swift -o $HERE/capture
+if [[ $CAPTURE == window ]]; then
+  [[ -x $HERE/capture ]] || swiftc -O $HERE/capture.swift -o $HERE/capture
+else
+  [[ -x $HERE/simcapture ]] || swiftc -O $HERE/simcapture.swift -o $HERE/simcapture
+fi
 mkdir -p $OUT
 
 xcrun simctl terminate $SIM $APP 2>/dev/null || true
@@ -47,11 +55,14 @@ if [[ -n "$TIME" ]]; then
   trap 'xcrun simctl status_bar $SIM clear' EXIT
 fi
 [[ -n "$CLIPBOARD" ]] && printf "%s" "$CLIPBOARD" | xcrun simctl pbcopy $SIM
-osascript -e 'tell application id "com.apple.dt.Devices" to activate' 2>/dev/null || true
-sleep 1.5
-
 rm -f $OUT/rec.mov $OUT/rec.json $OUT/taps.json
-$HERE/capture $OUT/rec.mov "$WINDOW" ${=SCREEN} $POINTS &
+if [[ $CAPTURE == window ]]; then
+  osascript -e 'tell application id "com.apple.dt.Devices" to activate' 2>/dev/null || true
+  sleep 1.5
+  $HERE/capture $OUT/rec.mov "$WINDOW" ${=SCREEN} $POINTS &
+else
+  $HERE/simcapture $OUT/rec.mov $SIM $POINTS &
+fi
 CAP=$!
 sleep 1.5
 xcrun simctl launch $SIM $APP "$@" >/dev/null

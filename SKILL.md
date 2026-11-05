@@ -22,9 +22,10 @@ live next to this file in `scripts/`; copy them into the project or run them fro
    finger landed (Step 1b).
 2. `scripts/record.sh` prepares the simulator (appearance, a 9:41 status bar, clipboard,
    saved app state), records the screen with `simctl io recordVideo` and stops when the
-   timeline appears. `scripts/record-lossless.sh` records the same run without loss from
-   the simulator's window through ScreenCaptureKit, for apps with soft dark gradients,
-   which `simctl` compresses into bands.
+   timeline appears. `scripts/record-lossless.sh` records the same run without loss, straight
+   from the simulator's framebuffer at the device's own pixel size (`simcapture`), for
+   apps with soft dark gradients, which `simctl` compresses into bands; no window is
+   involved, so the Mac stays free to work on.
 3. `scripts/compose.py` builds the clip: finds the exact offset between the timeline and
    the recording by watching when the screen starts changing after each press, draws the
    phone, background, camera and rings, and encodes 60 fps H.264. With a steady camera,
@@ -214,7 +215,27 @@ STATE_DIR=~/takes/state/MyApp APPEARANCE=dark TIME=9:41 CLIPBOARD="https://examp
 For apps whose look rests on soft gradients, especially dark ones: iOS dithers them and
 they are smooth on the device and in `simctl io screenshot`, but `simctl io recordVideo`
 compresses the dithering away and leaves bands about 40 px apart. Neither a higher output
-resolution nor a lower CRF brings it back. Record the window instead:
+resolution nor a lower CRF brings it back. Record without compression instead.
+
+`scripts/simcapture.swift` takes the frames where Device Hub and `simctl` take them: the
+screen's IOSurface, through CoreSimulator's private IO client (`SimDevice.io`, the port
+whose descriptor answers `registerScreenCallbacksWithUUID:...`, the one screen with power
+on). Each new frame is copied out and written as ProRes 422 HQ at the device's pixel size
+(1320 by 2868 on an iPhone 18 Pro Max, 3 px per point), only when the screen changes, up
+to 60 a second, with `rec.json` beside it. Nothing is shown anywhere, so the person keeps
+working; a take is about 30 MB a second.
+
+```
+swiftc -O scripts/simcapture.swift -o scripts/simcapture
+APPEARANCE=dark TIME=9:41 POINTS=440 scripts/record-lossless.sh ~/takes/take1 <udid> com.example.app -Demo
+scripts/simcapture --snapshot frame.png <udid>    # one frame, to check
+```
+
+It leans on private API, so a new Xcode may move it; `simctl io recordVideo` and the
+window capture below are the fallbacks.
+
+The window capture (`CAPTURE=window`): the screen as Device Hub shows it, only as sharp
+as the window, and the window must stay on screen.
 
 1. Xcode 27 shows simulators in Device Hub (`Xcode.app/Contents/Applications/DeviceHub.app`,
    `com.apple.dt.Devices`), Xcode 26 in Simulator. Open it on the booted device, hide the
@@ -284,7 +305,9 @@ Options that matter:
   at a zoom of 1.6 the frame shows about 725 points of a 956 point screen, so a button at
   the bottom wants a focus some 320 points above the screen's bottom.
 - `--ring`: `grey` (grey with a white rim and shadow, readable over white buttons),
-  `white` (the Telegram look) or `none`; `--ring-radius` in points (40).
+  `white` (the Telegram look) or `none`; `--ring-radius` in points (40). Every ring lives
+  the same 0.55 s whatever the pace: quick presses in a row each get a whole ring, and a
+  ring is never cut short to make room for the next or for a zoom.
 - A press in `taps.json` can carry `"lead"`: seconds the ring comes earlier than usual.
   Glass controls answer the finger with an animation of their own (the tab bar's lens
   sliding over, a glass button swelling) that a ring on top muddles; `"lead": 0.4` on a
@@ -338,6 +361,9 @@ for stripes. To see the frame rate of the motion itself, list the recording's fr
   Space, hidden), and a command-line tool needs `NSApplication.shared` touched before it
   captures, or CoreGraphics asserts. Calls with completion handlers resolve to the
   synchronous overload in top-level code; wrap them in a continuation.
+- The framebuffer has several screens on a port each: Resizable, Wireless, TVOut and the
+  LCD; only the LCD has power. The screen's properties come through a remote proxy that
+  answers selectors, not key-value coding.
 - Device Hub can draw the device at another size after the simulator reboots; measure
   the screen in the window before every take (record-uitest.sh does), or the capture
   takes the wrong part of the window.
