@@ -1,6 +1,6 @@
-# Telegram Style Motion
+# App Demo Motion
 
-Promo clips of an iOS app in the style Telegram uses for its feature announcements:
+Smooth demo clips of an iOS app, made to show a feature at a glance:
 a real phone on a soft gradient or your own picture, the app running inside, the camera
 leaning in on the action or holding still, a ring pulsing under every tap and following
 every swipe.
@@ -16,19 +16,19 @@ plain zsh, Python and Swift.
 ## Install
 
 ```
-git clone https://github.com/finkoegor/telegram-style-motion ~/.claude/skills/telegram-style-motion
+git clone https://github.com/finkoegor/app-demo-motion ~/.claude/skills/app-demo-motion
 ```
 
 Without git:
 
 ```
-mkdir -p ~/.claude/skills/telegram-style-motion && curl -L https://github.com/finkoegor/telegram-style-motion/archive/refs/heads/main.tar.gz | tar -xz --strip-components=1 -C ~/.claude/skills/telegram-style-motion
+mkdir -p ~/.claude/skills/app-demo-motion && curl -L https://github.com/finkoegor/app-demo-motion/archive/refs/heads/main.tar.gz | tar -xz --strip-components=1 -C ~/.claude/skills/app-demo-motion
 ```
 
-Or for one project only, into its `.claude/skills/telegram-style-motion`. Start a new
+Or for one project only, into its `.claude/skills/app-demo-motion`. Start a new
 Claude Code session in the app's folder and ask in your own words, for example "make a
 promo clip: add an item from a link, show the result, dark theme, brand gradient", or
-call it directly with `/telegram-style-motion`. Claude can also install it for you if
+call it directly with `/app-demo-motion`. Claude can also install it for you if
 you paste the repository link and ask it to.
 
 ## What you need
@@ -180,7 +180,7 @@ Zoom or no zoom is a matter of taste; both work.
 ## The rings
 
 `--ring grey` (default) is a grey ring with a white rim and a soft shadow; it stays
-visible over white buttons. `--ring white` is the plain white ring from Telegram's clips.
+visible over white buttons. `--ring white` is a plain white ring.
 `--ring none` turns them off. `--ring-radius` is in screen points.
 
 Glass controls (the tab bar, glass buttons) answer a finger with an animation of their

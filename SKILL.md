@@ -1,9 +1,9 @@
 ---
-name: telegram-style-motion
-description: Makes Telegram-style promo clips of an iOS app. The app plays a scripted flow on the iOS Simulator, the recording goes into a phone bezel on a gradient, a color or the person's own picture, a camera moves in on the action or holds a steady wide shot, and a ring pulses at every tap and follows every swipe. Use when asked for an app promo video, a feature screencast with tap highlights, a motion clip of a flow, a "video like Telegram makes", or a clip for Threads, Reels, Product Hunt or the App Store page.
+name: app-demo-motion
+description: Makes smooth demo clips of an iOS app. The app plays a scripted flow on the iOS Simulator, the recording goes into a phone bezel on a gradient, a color or the person's own picture, a camera moves in on the action or holds a steady wide shot, and a ring pulses at every tap and follows every swipe. Use when asked for an app promo video, a feature screencast with tap highlights, a motion clip of a flow, a smooth feature demo, or a clip for Threads, Reels, Product Hunt or the App Store page.
 ---
 
-# Telegram Style Motion
+# App Demo Motion
 
 The look: a real phone body on a soft colorful background, the app running inside at
 full frame rate, the camera leaning in on what matters, a ring pulsing where the finger
@@ -43,8 +43,8 @@ code, settle the scenario together:
   it as a numbered list of presses and waits. If it should loop, it ends where it began.
 - What the viewer must read at each step, and what is only a transition. That decides
   the pauses (a result is held 1.5 to 2.5 s, a transition is not held) and the camera
-  (lean in on what is read, go wide for full-screen effects). The pace of Telegram's own
-  clips is fast: a press every half second to a second, a row of quick presses (three
+  (lean in on what is read, go wide for full-screen effects). A good demo clip is
+  fast: a press every half second to a second, a row of quick presses (three
   check-ins, a few icons) half a second apart, zooms of half a second; a 15 step flow
   fits in 17 to 20 seconds.
 - Inputs: links, text, photos, accounts. Each one is seeded, not typed live: a link goes
@@ -324,7 +324,7 @@ Options that matter:
   at a zoom of 1.6 the frame shows about 725 points of a 956 point screen, so a button at
   the bottom wants a focus some 320 points above the screen's bottom.
 - `--ring`: `grey` (grey with a white rim and shadow, readable over white buttons),
-  `white` (the Telegram look) or `none`; `--ring-radius` in points (40). Every ring lives
+  `white` (a plain white ring) or `none`; `--ring-radius` in points (40). Every ring lives
   the same 0.55 s whatever the pace: quick presses in a row each get a whole ring, and a
   ring is never cut short to make room for the next or for a zoom.
 - `--ring-lead` (0.25): seconds every ring opens before its press. A ring peaks just
