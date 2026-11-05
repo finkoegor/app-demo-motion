@@ -171,8 +171,9 @@ let a UI test press the controls and have the app only record the touches:
 - Seed what the screens show through launch arguments the app reads (sample data, a
   layout, the appearance), so the test starts from the same content every time.
 - Typed text: `typeText` on the focused field. The first time a software keyboard shows,
-  iOS covers it with a "slide to type" tip; the take scripts mark the tips as seen, do the
-  same before any take by hand. Device Hub connects the Mac's keyboard,
+  iOS covers it with a "slide to type" tip (`DidShowContinuousPathIntroduction` in
+  `com.apple.keyboard.preferences`); the take scripts mark it seen, and `record-uitest.sh`
+  plays the run once without recording first, so the take starts on a warm simulator. Device Hub connects the Mac's keyboard,
   which hides the software keyboard; turn it off in Device Hub's toolbar if the keyboard
   should show.
 
@@ -320,6 +321,10 @@ Options that matter:
   `white` (the Telegram look) or `none`; `--ring-radius` in points (40). Every ring lives
   the same 0.55 s whatever the pace: quick presses in a row each get a whole ring, and a
   ring is never cut short to make room for the next or for a zoom.
+- `--ring-lead` (0.25): seconds every ring opens before its press. A ring peaks just
+  before the finger lands and is fading by the time the button answers, so it never sits
+  over a check mark or a glass lens as it changes. The same lead for every press: a ring
+  that comes earlier or later than the rest reads as uneven timing.
 - A press in `taps.json` can carry `"lead"`: seconds the ring comes earlier than usual.
   Glass controls answer the finger with an animation of their own (the tab bar's lens
   sliding over, a glass button swelling) that a ring on top muddles; `"lead": 0.15` lets

@@ -27,7 +27,10 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 
 FPS = 60
-RING_LEAD = 0.12
+# A ring opens out a little before its press, so it is already fading when the button
+# answers (a check mark, a glass lens) instead of sitting over it; the same for every
+# press, or the timing reads as uneven.
+RING_LEAD = 0.25
 # A pinch: half the distance between the fingers as they land and as they lift, in
 # screen points, and the slant of the line through them.
 PINCH_SPREAD = (110, 46)
@@ -441,6 +444,7 @@ def parse_args():
     parser.add_argument("--camera", default="none", help="none, auto, or a JSON file of moves")
     parser.add_argument("--ring", default="grey", choices=["grey", "white", "none"])
     parser.add_argument("--ring-radius", type=float, default=40, help="in screen points")
+    parser.add_argument("--ring-lead", type=float, default=RING_LEAD, help="seconds a ring comes before its press, the same for every press")
     parser.add_argument("--lead", type=float, default=1.3, help="seconds before the first press")
     parser.add_argument("--tail", type=float, default=2.2, help="seconds after the last press")
     parser.add_argument("--deband", nargs="?", const=DEBAND, default="",
@@ -559,7 +563,7 @@ def main():
                     point, share, alpha = finger
                     points = [point]
                 else:
-                    share, alpha = ring_shape(t - tap["time"] + RING_LEAD + tap.get("lead", 0))
+                    share, alpha = ring_shape(t - tap["time"] + args.ring_lead + tap.get("lead", 0))
                     points = [(tap["x"], tap["y"])]
                 if alpha > 0:
                     for px, py in points:

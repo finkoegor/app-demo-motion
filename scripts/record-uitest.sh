@@ -13,7 +13,8 @@
 # Hub must also show the device, sidebar hidden, zoomed as large as the window allows, and
 # stay on screen untouched while it records.
 #
-# Environment: APPEARANCE (dark or light), TIME (9:41), DERIVED (the derived data folder,
+# Environment: NO_WARMUP (skip the run without recording before the take), APPEARANCE
+# (dark or light), TIME (9:41), DERIVED (the derived data folder,
 # default <out-dir>/../dd), WINDOW (the window's title, default the device's name), POINTS
 # (the screen's width in points, default 402), FLAG (the variable the test checks, default
 # PROMO; passed to the test as TEST_RUNNER_<FLAG>=1).
@@ -38,7 +39,15 @@ if [[ -n "$TIME" ]]; then
 fi
 # The keyboard's first-use tips (slide to type) would cover the screen mid-take.
 xcrun simctl spawn $SIM defaults write com.apple.keyboard.preferences DidShowContinuousPathIntroduction -bool true 2>/dev/null || true
-xcrun simctl spawn $SIM defaults write com.apple.keyboard.preferences DidShowGestureKeyboardIntroduction -bool true 2>/dev/null || true
+xcrun simctl spawn $SIM defaults write com.apple.keyboard CPDidDiscover -bool true 2>/dev/null || true
+# Warm up: one run without recording, so the first launch, the first keyboard and every
+# screen are behind us before the take. NO_WARMUP=1 skips it.
+if [[ -z "$NO_WARMUP" ]]; then
+  (cd $PROJECT && env TEST_RUNNER_$FLAG=1 xcodebuild test-without-building -scheme $SCHEME -destination "id=$SIM" \
+    -derivedDataPath $DERIVED -parallel-testing-enabled NO -collect-test-diagnostics never \
+    -only-testing:$TEST 2>&1 | grep -E "Test Case.*(passed|failed)" | sed 's/^/warm-up: /') || true
+  sleep 2
+fi
 DATA=$(xcrun simctl get_app_container $SIM $APP data 2>/dev/null || true)
 [[ -n "$DATA" ]] && rm -f "$DATA/tmp/demo-taps.json"
 
