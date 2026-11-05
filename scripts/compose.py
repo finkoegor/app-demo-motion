@@ -445,6 +445,7 @@ def parse_args():
     parser.add_argument("--tail", type=float, default=2.2, help="seconds after the last press")
     parser.add_argument("--deband", nargs="?", const=DEBAND, default="",
                         help="smooth the steps simctl's compression leaves in dark gradients (an ffmpeg filter; the flag alone uses a tested one)")
+    parser.add_argument("--saturation", type=float, default=1.0, help="the screen's colors, 1 as the app draws them; 1.1 is a touch richer")
     parser.add_argument("--noise", type=float, default=1.5, help="film grain over the whole clip, so the encoder keeps gradients smooth; 0 for none")
     parser.add_argument("--grain", type=float, default=1.6, help="noise over a background picture, against banding")
     parser.add_argument("--offset", type=float, help="recording time of the run's start; found from the frames when omitted")
@@ -502,7 +503,7 @@ def main():
 
     decode = subprocess.Popen(
         ["ffmpeg", "-loglevel", "error", "-i", str(video), "-vf",
-         f"{args.deband + ',' if args.deband else ''}tpad=stop_mode=clone:stop_duration=10,fps={args.fps},trim=start={max(0, start + offset):.4f}:duration={frames / args.fps + 1},setpts=PTS-STARTPTS",
+         f"{args.deband + ',' if args.deband else ''}{f'eq=saturation={args.saturation},' if args.saturation != 1 else ''}tpad=stop_mode=clone:stop_duration=10,fps={args.fps},trim=start={max(0, start + offset):.4f}:duration={frames / args.fps + 1},setpts=PTS-STARTPTS",
          "-fps_mode", "passthrough", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
         stdout=subprocess.PIPE)
     # A silent stereo track goes along: LinkedIn will not take a video without sound.

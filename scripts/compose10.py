@@ -95,7 +95,7 @@ rings.wait()
 duration = frames / args.fps
 rgb_to_yuv = "scale=out_color_matrix=bt709:out_range=tv"
 graph = ";".join([
-    f"[1:v]tpad=stop_mode=clone:stop_duration=10,fps={args.fps},trim=start={max(0, start + offset):.4f}:duration={duration + 1},"
+    f"[1:v]{f'eq=saturation={args.saturation},' if args.saturation != 1 else ''}tpad=stop_mode=clone:stop_duration=10,fps={args.fps},trim=start={max(0, start + offset):.4f}:duration={duration + 1},"
     f"setpts=PTS-STARTPTS,scale={sw}:{sh}:flags=lanczos,format=yuva444p10le[screen]",
     "[2:v]format=gray10le[mask]",
     "[screen][mask]alphamerge[shaped]",

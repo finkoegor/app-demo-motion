@@ -324,6 +324,8 @@ Options that matter:
 - `--lead` and `--tail`: rest before the first press and after the last one.
 - `--offset`: overrides the automatic sync when the first screen change is not caused
   by the press (a spinner was running) or the timeline is hand made.
+- `--saturation`: the screen's colors, 1 as the app draws them (what the framebuffer
+  gives); 1.1 adds a touch of richness without turning the colors.
 - `--deband`: smooths the steps `simctl` compression leaves in dark gradients; helps a
   plain take, a lossless one doesn't need it. `--noise` (1.5) is film grain over the
   clip so the encoder keeps gradients smooth; 0 turns it off.
