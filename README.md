@@ -1,7 +1,5 @@
 # Telegram Style Motion
 
-![A clip made with the skill](examples/demo.gif)
-
 Promo clips of an iOS app in the style Telegram uses for its feature announcements:
 a real phone on a soft gradient or your own picture, the app running inside, the camera
 leaning in on the action or holding still, a ring pulsing under every tap and following
