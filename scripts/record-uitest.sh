@@ -36,6 +36,9 @@ if [[ -n "$TIME" ]]; then
     --cellularMode active --cellularBars 4 --wifiMode active --wifiBars 3 --dataNetwork wifi
   trap 'xcrun simctl status_bar $SIM clear' EXIT
 fi
+# The keyboard's first-use tips (slide to type) would cover the screen mid-take.
+xcrun simctl spawn $SIM defaults write com.apple.keyboard.preferences DidShowContinuousPathIntroduction -bool true 2>/dev/null || true
+xcrun simctl spawn $SIM defaults write com.apple.keyboard.preferences DidShowGestureKeyboardIntroduction -bool true 2>/dev/null || true
 DATA=$(xcrun simctl get_app_container $SIM $APP data 2>/dev/null || true)
 [[ -n "$DATA" ]] && rm -f "$DATA/tmp/demo-taps.json"
 

@@ -481,7 +481,15 @@ def main():
     screen_size, pts = probe(video)
     first_frame = info.get("first_frame") or first_frame_wall_time(video, pts[-1])
     anchor = started - first_frame if started else None
-    offset = args.offset if args.offset is not None else sync_offset(taps, change_onsets(video, pts), anchor)
+    # Real touches carry their own clock (the touch's timestamp), and the screen's answer to
+    # them comes at varying delays; matching presses to changes would move each ring by that
+    # delay. Their clock alone lines them up.
+    if args.offset is not None:
+        offset = args.offset
+    elif info and all(tap.get("target") == "touch" for tap in taps):
+        offset = anchor
+    else:
+        offset = sync_offset(taps, change_onsets(video, pts), anchor)
 
     start = (taps[0]["time"] if taps else 0) - args.lead
     end = (taps[-1]["time"] if taps else pts[-1] - offset) + args.tail

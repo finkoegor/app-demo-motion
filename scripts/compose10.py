@@ -34,7 +34,13 @@ args.scale = info["scale"]
 taps, started = compose.load_timeline(take / "taps.json")
 screen_size, pts = compose.probe(video)
 anchor = started - info["first_frame"]
-offset = args.offset if args.offset is not None else compose.sync_offset(taps, compose.change_onsets(video, pts), anchor)
+# Real touches carry their own clock; the screen answers them at varying delays.
+if args.offset is not None:
+    offset = args.offset
+elif all(tap.get("target") == "touch" for tap in taps):
+    offset = anchor
+else:
+    offset = compose.sync_offset(taps, compose.change_onsets(video, pts), anchor)
 compose.warn_off_screen(taps, screen_size[0] / args.scale, screen_size[1] / args.scale)
 start = taps[0]["time"] - args.lead
 end = taps[-1]["time"] + args.tail

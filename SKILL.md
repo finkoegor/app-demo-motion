@@ -170,7 +170,9 @@ let a UI test press the controls and have the app only record the touches:
   first, then query.
 - Seed what the screens show through launch arguments the app reads (sample data, a
   layout, the appearance), so the test starts from the same content every time.
-- Typed text: `typeText` on the focused field. Device Hub connects the Mac's keyboard,
+- Typed text: `typeText` on the focused field. The first time a software keyboard shows,
+  iOS covers it with a "slide to type" tip; the take scripts mark the tips as seen, do the
+  same before any take by hand. Device Hub connects the Mac's keyboard,
   which hides the software keyboard; turn it off in Device Hub's toolbar if the keyboard
   should show.
 
@@ -320,9 +322,13 @@ Options that matter:
   ring is never cut short to make room for the next or for a zoom.
 - A press in `taps.json` can carry `"lead"`: seconds the ring comes earlier than usual.
   Glass controls answer the finger with an animation of their own (the tab bar's lens
-  sliding over, a glass button swelling) that a ring on top muddles; `"lead": 0.4` on a
-  tab bar press and 0.15 on a glass button let the ring land and fade just before it;
-  more and the ring reads as coming before the finger.
+  sliding over, a glass button swelling) that a ring on top muddles; `"lead": 0.15` lets
+  the ring land a little before it. Use it sparingly: a ring that comes earlier than the
+  others reads as uneven timing, and the person notices. Every ring should sit the same
+  way against its press.
+- Real touches (`"target": "touch"`) are lined up by their own clock, not by matching
+  presses to the screen's changes: the app answers each press after a different delay,
+  and matching moved every ring by its own delay.
 - `--lead` and `--tail`: rest before the first press and after the last one.
 - `--offset`: overrides the automatic sync when the first screen change is not caused
   by the press (a spinner was running) or the timeline is hand made.

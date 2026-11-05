@@ -41,6 +41,9 @@ fi
 mkdir -p $OUT
 
 xcrun simctl terminate $SIM $APP 2>/dev/null || true
+# The keyboard's first-use tips (slide to type) would cover the screen mid-take.
+xcrun simctl spawn $SIM defaults write com.apple.keyboard.preferences DidShowContinuousPathIntroduction -bool true 2>/dev/null || true
+xcrun simctl spawn $SIM defaults write com.apple.keyboard.preferences DidShowGestureKeyboardIntroduction -bool true 2>/dev/null || true
 DATA=$(xcrun simctl get_app_container $SIM $APP data)
 rm -f "$DATA/tmp/demo-taps.json"
 if [[ -n "$STATE_DIR" ]]; then
