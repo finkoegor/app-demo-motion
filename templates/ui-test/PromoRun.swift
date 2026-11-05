@@ -47,12 +47,13 @@ final class PromoRun: XCTestCase {
         rest(1.5)
     }
 
-    /// A finger's press: down, held for a moment so the control shows it, up.
+    /// A finger's tap. A press held for a while (`press(forDuration:)`) comes up late once
+    /// the idle waits are off, and a button stays lit twice as long.
     @MainActor
     private func press(_ point: CGPoint, in app: XCUIApplication) {
         app.coordinate(withNormalizedOffset: .zero)
             .withOffset(CGVector(dx: point.x, dy: point.y))
-            .press(forDuration: 0.1)
+            .tap()
     }
 
     /// The screen once something on it shows, read in one go.
@@ -75,13 +76,11 @@ final class PromoRun: XCTestCase {
         Thread.sleep(forTimeInterval: seconds)
     }
 
-    /// XCTest waits before every event until the app stops animating; telling it to skip
-    /// that wait leaves the timing to the script. Private API, test only.
+    /// XCTest waits before and after every event until the app stops animating; telling
+    /// it to skip those waits leaves the timing to the script. Private API, test only.
     private static func skipWaitingForIdle() {
         guard let process = NSClassFromString("XCUIApplicationProcess") else { return }
-        // Only the wait before an event: skipping the one after it too leaves the touch
-        // up late, and a pressed button stays lit twice as long.
-        for name in ["shouldSkipPreEventQuiescence"] {
+        for name in ["shouldSkipPreEventQuiescence", "shouldSkipPostEventQuiescence"] {
             guard let method = class_getInstanceMethod(process, NSSelectorFromString(name)) else { continue }
             let skip: @convention(block) (AnyObject) -> Bool = { _ in true }
             method_setImplementation(method, imp_implementationWithBlock(skip))

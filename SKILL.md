@@ -157,10 +157,10 @@ let a UI test press the controls and have the app only record the touches:
   there. It runs only with `PROMO=1`, so it never joins the suite.
 - Pace: XCTest waits for the app to go idle around every event, and asking an element for
   its frame takes a second or more; both show as dead air. The template turns the idle
-  wait before each event off (`skipWaitingForIdle`, a private switch, test only; the wait
-  after an event stays, or the touch comes up late and a pressed button stays lit twice
-  as long), reads each screen once
-  with `app.snapshot()` and presses points with `coordinate.press(forDuration: 0.1)`. A
+  waits off (`skipWaitingForIdle`, a private switch, test only), reads each screen once
+  with `app.snapshot()` and taps points with `coordinate.tap()`. Not
+  `press(forDuration:)`: with the waits off its touch comes up late and a button stays lit
+  twice as long, and with the waits on every press stalls while the app animates. A
   press then costs about half a second, so a row of presses with `rest(0.05)` between
   lands every 0.55 s. With the waits off, the pauses alone must cover each screen's
   movement: snapshot a sheet only after it has risen. Never query the app right after a
