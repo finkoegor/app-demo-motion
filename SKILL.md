@@ -8,6 +8,9 @@ description: Makes smooth demo clips of an iOS app. The app plays a scripted flo
 The look: a real phone body on a soft colorful background, the app running inside at
 full frame rate, the camera leaning in on what matters, a ring pulsing where the finger
 lands. The clip is cut from one unbroken take, so every animation is the app's own.
+Heavy animations (a sheet full of content, a big Canvas, confetti) can stutter in the
+take even when they run smoothly on a phone, since the Simulator draws them slower; say
+so up front, and keep such moments short or cut around them.
 
 Everything runs on a Mac with Xcode, ffmpeg and Python 3 (Pillow, numpy). The scripts
 live next to this file in `scripts/`; copy them into the project or run them from here.

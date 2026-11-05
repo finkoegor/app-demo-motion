@@ -10,6 +10,10 @@ Simulator's screen is recorded without loss straight from its framebuffer, a scr
 puts the recording into a phone bezel, adds the background, the camera moves and the
 rings, and encodes 60 fps H.264, or HEVC in 10 bits.
 
+Heavy animations (a sheet full of content, a big Canvas, confetti) can stutter in the
+take even when they run smoothly on a phone: the Simulator draws them slower. Keep such
+moments short or cut around them.
+
 This repository is a skill for Claude Code. It also works by hand: the scripts are
 plain zsh, Python and Swift.
 
