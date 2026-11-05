@@ -229,8 +229,11 @@ is better: external taps drift, and the first taps after a boot land late.
   `ffprobe -v error -select_streams v -show_entries frame=pts_time -of csv=p=0 rec.mp4`
   and look for steps between 0.04 and 0.1 s (longer ones are the screen standing still).
   Drops that run for a second or more at one moment are an animation the Simulator draws on
-  the CPU frame by frame, such as a Canvas with thousands of cells; building the app with
-  `SWIFT_OPTIMIZATION_LEVEL=-O` didn't change them in a test (22 against 33 drops, noise).
+  the CPU frame by frame, such as a Canvas with thousands of cells. An optimized build
+  doesn't change them: the same run taken twice from the framebuffer lost 106 and 106
+  frames in Debug, 112 and 98 with `SWIFT_OPTIMIZATION_LEVEL=-O
+  SWIFT_COMPILATION_MODE=wholemodule` (DEBUG kept for the demo code). The time goes to
+  SwiftUI and the system, which are optimized in both, not to the app's own code.
   Shorten that moment in the scenario, cut around it, or record that part on a device.
 
 ## License
