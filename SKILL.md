@@ -244,6 +244,12 @@ The colors are the app's own: the framebuffer matches `simctl io screenshot` pix
 pixel, and ProRes keeps them within one step. The window capture ran the picture through
 the Mac's display pipeline and came out more saturated than the app draws.
 
+The screen calls back more often than it changes and in bursts while the simulator is
+busy; simcapture takes each frame's time the moment it arrives, skips callbacks whose
+surface seed hasn't moved, and encodes on a queue of its own. Taking the time after the
+encoder bunched frames 2 ms apart after 50 to 100 ms gaps, which played as stutter in
+exactly the busiest moments (confetti).
+
 It leans on private API, so a new Xcode may move it; `simctl io recordVideo` and the
 window capture below are the fallbacks.
 

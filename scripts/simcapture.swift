@@ -1,5 +1,6 @@
 // Records a simulator's screen straight from its framebuffer, at the device's own pixel
-// size and without compression (ProRes 422 HQ), until SIGINT. No window is involved: the
+// size and without compression (ProRes 422 HQ), until SIGINT. A frame's time is taken the
+// moment it arrives and encoding happens apart, so a busy encoder never bunches frames. No window is involved: the
 // frames come from CoreSimulator's private IO client, the same place Device Hub and
 // `simctl io recordVideo` take them from, so the Mac's screen stays free.
 //
@@ -80,10 +81,18 @@ final class Recorder: @unchecked Sendable {
     let writer: AVAssetWriter
     let input: AVAssetWriterInput
     let adaptor: AVAssetWriterInputPixelBufferAdaptor
+    private let pool: CVPixelBufferPool
+    /// Encoding runs here, apart from the screen's callbacks, so a slow frame never delays
+    /// the moment the next one is taken: each frame keeps the time it arrived.
+    private let encoding = DispatchQueue(label: "simcapture.encoding", qos: .userInitiated)
+    /// Frames copied out and not yet written; past this many a frame is dropped rather
+    /// than letting memory run away.
+    private let backlog = DispatchSemaphore(value: 90)
     private(set) var firstFrameWallTime: Double?
     private(set) var frames = 0
     private(set) var dropped = 0
     private var started = false
+    private var lastSeed: UInt32?
 
     init(url: URL, width: Int, height: Int) throws {
         try? FileManager.default.removeItem(at: url)
@@ -94,54 +103,81 @@ final class Recorder: @unchecked Sendable {
             AVVideoHeightKey: height,
         ])
         input.expectsMediaDataInRealTime = true
-        adaptor = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: input, sourcePixelBufferAttributes: [
+        adaptor = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: input, sourcePixelBufferAttributes: nil)
+        writer.add(input)
+        writer.startWriting()
+        var created: CVPixelBufferPool?
+        CVPixelBufferPoolCreate(nil, nil, [
             kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
             kCVPixelBufferWidthKey as String: width,
             kCVPixelBufferHeightKey as String: height,
-        ])
-        writer.add(input)
-        writer.startWriting()
+            kCVPixelBufferIOSurfacePropertiesKey as String: [:],
+        ] as CFDictionary, &created)
+        pool = created!
     }
 
-    /// Copies the surface's pixels out, since the simulator draws the next frame into it.
-    func append(_ surface: IOSurface) {
+    /// Takes the frame now: notes the time and copies the pixels out, since the simulator
+    /// draws the next frame into the same surface. The screen calls back more often than
+    /// it changes; a surface whose seed hasn't moved is the frame already taken.
+    func capture(_ surface: IOSurface) {
+        let seed = surface.seed
+        guard seed != lastSeed else { return }
+        lastSeed = seed
         let time = CMClockGetTime(CMClockGetHostTimeClock())
-        if !started {
-            writer.startSession(atSourceTime: time)
+        if firstFrameWallTime == nil {
             firstFrameWallTime = Date().timeIntervalSince1970
-            started = true
         }
-        guard input.isReadyForMoreMediaData, let pool = adaptor.pixelBufferPool else {
+        guard backlog.wait(timeout: .now()) == .success else {
             dropped += 1
             return
         }
         var buffer: CVPixelBuffer?
         CVPixelBufferPoolCreatePixelBuffer(nil, pool, &buffer)
-        guard let buffer else { dropped += 1; return }
+        guard let buffer else {
+            backlog.signal()
+            dropped += 1
+            return
+        }
         surface.lock(options: .readOnly, seed: nil)
         CVPixelBufferLockBaseAddress(buffer, [])
         let source = surface.baseAddress
         let destination = CVPixelBufferGetBaseAddress(buffer)!
         let sourceRow = surface.bytesPerRow
         let destinationRow = CVPixelBufferGetBytesPerRow(buffer)
-        let rowBytes = min(sourceRow, destinationRow)
         if sourceRow == destinationRow {
             memcpy(destination, source, sourceRow * surface.height)
         } else {
+            let rowBytes = min(sourceRow, destinationRow)
             for row in 0..<surface.height {
                 memcpy(destination + row * destinationRow, source + row * sourceRow, rowBytes)
             }
         }
         CVPixelBufferUnlockBaseAddress(buffer, [])
         surface.unlock(options: .readOnly, seed: nil)
-        if adaptor.append(buffer, withPresentationTime: time) {
-            frames += 1
-        } else {
-            dropped += 1
+        encoding.async { [self] in
+            defer { backlog.signal() }
+            if !started {
+                writer.startSession(atSourceTime: time)
+                started = true
+            }
+            // The writer catches up on its own time; the frame's time is already fixed.
+            var waited = 0
+            while !input.isReadyForMoreMediaData, waited < 500 {
+                usleep(1000)
+                waited += 1
+            }
+            if adaptor.append(buffer, withPresentationTime: time) {
+                frames += 1
+            } else {
+                dropped += 1
+            }
         }
     }
 
     func finish() async {
+        await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
+            encoding.async { done.resume() }
+        }
         input.markAsFinished()
         await writer.finishWriting()
     }
@@ -161,7 +197,7 @@ func savePNG(_ surface: IOSurface, to url: URL) {
 
 let (screen, size) = screenOfDevice()
 let width = Int(size.width), height = Int(size.height)
-let queue = DispatchQueue(label: "simcapture")
+let queue = DispatchQueue(label: "simcapture", qos: .userInteractive)
 let recorder = snapshot ? nil : try Recorder(url: output, width: width, height: height)
 nonisolated(unsafe) var surface: IOSurface?
 nonisolated(unsafe) var frameCount = 0
@@ -174,7 +210,7 @@ let frameCallback: @convention(block) () -> Void = {
         print("\(width)x\(height)")
         exit(0)
     }
-    recorder?.append(surface)
+    recorder?.capture(surface)
 }
 // The screen's buffers: the first is the one the simulator shows.
 let surfacesCallback: @convention(block) (IOSurface?, IOSurface?) -> Void = { front, _ in
